@@ -1,8 +1,8 @@
 from typing import Dict, List
 
 
-from character.NonPlayerCharacter import NonPlayerCharacter
-from character.PlayerCharacter import PlayerCharacter
+from characters.NonPlayerCharacter import NonPlayerCharacter
+from characters.PlayerCharacter import PlayerCharacter
 from items.BaseItem import BaseItem
 
 
@@ -13,20 +13,17 @@ class Scene:
     _players: Dict[str, PlayerCharacter]
     _non_player_characters: Dict[str, NonPlayerCharacter]
     _interactive_items: List[BaseItem]
-    _runtime_stack: List[str]
+    _memory: List[str]
     _keeper_commands: List[str]
 
-    def __init__(self,
-                 era: str, position: str,
-                 description: str,
-                 **kwargs):
-        self._era = era
-        self._position = position
-        self._description = description
+    def __init__(self, **kwargs):
+        self._era = kwargs.get("era")
+        self._position = kwargs.get("position")
+        self._description = kwargs.get("description")
         self._players = {}
         self._non_player_characters = {}
         self._interactive_items = []
-        self._runtime_stack = kwargs.get("runtime_stack", [])
+        self._memory = kwargs.get("memory", [])
         self._keeper_commands = kwargs.get("keeper_commands", [])
 
     def add_player(self, character: PlayerCharacter):
@@ -51,8 +48,8 @@ class Scene:
 
          {self._description}
         """
-        if len(self._runtime_stack) > 0:
-            runtime_description = "\n".join(self._runtime_stack)
+        if len(self._memory) > 0:
+            runtime_description = "\n".join(self._memory)
             prompt += f"""
             到目前为止，此处发生了以下事件：
             {runtime_description}

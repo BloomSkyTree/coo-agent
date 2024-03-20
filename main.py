@@ -2,7 +2,7 @@ import agentscope
 from agentscope.agents import UserAgent
 
 from agents.KeeperControlledAgent import KeeperControlledAgent
-from character.NonPlayerCharacter import NonPlayerCharacter
+from characters.NonPlayerCharacter import NonPlayerCharacter
 from scene.Scene import Scene
 
 model_configs = [
@@ -124,14 +124,35 @@ if __name__ == '__main__':
     # )
     # check_agent(f"KP：你低下头，脚下一片血红。在那血红延伸开去的方向，堆积着大量的——尸体。")
 
-    userAgent = UserAgent()
-    x = None
-    while True:
-        x = userAgent(x)
-        # Terminate the conversation if the user types "exit"
-        if x.content == "exit":
-            print(npc.generate_long_term_memory())
-            break
-        x = npc(x)
+    command_router_agent = KeeperControlledAgent(
+        name="command router agent",
+        sys_prompt="你是指令的传达者。根据给出的指令，判断指令需要传达给以下哪些对象。"
+                   "注意：指令可能影响多个对象。"
+                   "以下是可能成为指令目标的对象："
+                   "场景管理器：只接受某些会对环境造成持久影响的指令。"
+                   "人物管理器：只接受与登场人物有关的指令。"
+                   "战斗管理器：只接受战斗轮开始的指令。"
+                   "追逐管理器：只接受追逐轮开始的指令。"
+                   "以、为间隔，回答所有接受指令的对象。",
+        model_config_name="qwen-max",
+        use_memory=True
+    )
 
+    npc_manager_agent = KeeperControlledAgent(
+        name="npc manager agent",
+        sys_prompt="你是人物管理器。根据给出的指令，判断指令需要传达给以下哪些人物。"
+                   "指令可能不会直接指名道姓，需要从对象的特征判断是否成为指令的目标。"
+                   "注意：指令可能以多个对象为目标。"
+                   "以下是可能成为指令目标的对象："
+                   "安理：图书管理员，少女\n"
+                   "安阳：一位高大的男性\n"
+                   "刘毅：馆长\n"
+                   "以换行符为间隔，回答所有接受指令的对象的名字。回答的对象必须从上述对象中选出，或者是“无”。",
+        model_config_name="qwen-max",
+        use_memory=True
+    )
+
+    router_result = command_router_agent("阿特拉斯向少女走去。")["content"]
+    if "人物管理器" in router_result:
+        npc_manager_agent("阿特拉斯向少女走去。")
 
