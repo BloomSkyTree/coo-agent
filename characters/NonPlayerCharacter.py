@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Sequence
 
 import yaml
+from agentscope.agents import AgentBase
 from agentscope.message import Msg
 from typing import Type
 from agents.KeeperControlledAgent import KeeperControlledAgent
 from characters.BaseCharacter import BaseCharacter
-
 
 
 class NonPlayerCharacter(BaseCharacter):
@@ -33,10 +33,7 @@ class NonPlayerCharacter(BaseCharacter):
             use_memory=True
         )
 
-    def __call__(self, message:Msg):
-        prompt = ""
-
-        prompt += "以下是在你身边发生的事或对话：\n"
+    def __call__(self, message: Msg):
         return self._agent(message)
 
     def generate_system_prompt(self):
@@ -60,7 +57,9 @@ class NonPlayerCharacter(BaseCharacter):
                             f"如果有关于自己记忆的描述，则需要根据记忆进行扮演。" \
                             f"对于没有在上文中出现名字，且逻辑上与自己无关的人，都将其作为陌生人看待。" \
                             f"如果陌生人没有自我介绍，则你不应当知道其名字。\n" \
-                            f"扮演时，不一定要说话，也可以只做动作或表情。\n"
+                            f"扮演时，不一定要说话，也可以只做动作或表情。\n" \
+                            f"扮演时的格式如下：\n" \
+                            f"自己的名字：（表情，神态，动作）“说话的内容（如果不说话，则不需要此部分）”"
         if self._short_term_memory or self._long_term_memory:
             character_prompt += "你的记忆：\n"
         for memory in self._short_term_memory:
@@ -78,3 +77,12 @@ class NonPlayerCharacter(BaseCharacter):
 
     def set_scene(self, scene):
         self._belong_to_scene = scene
+
+    def reset_audience(self, audience: Sequence["BaseCharacter"]):
+        self._agent.reset_audience([c.get_agent() for c in audience])
+
+    def get_agent(self):
+        return self._agent
+
+    def rm_audience(self, character: "BaseCharacter"):
+        return self._agent.rm_audience(character.get_agent())

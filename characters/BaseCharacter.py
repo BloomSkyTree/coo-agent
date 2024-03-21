@@ -1,4 +1,5 @@
-from typing import List, Union
+from abc import abstractmethod
+from typing import List, Union, Dict
 
 import yaml
 
@@ -16,6 +17,8 @@ class BaseCharacter:
 
     _items: List[BaseItem]
 
+    _ability: Dict[str, int]
+
     def __init__(self, **kwargs):
         config = kwargs
         config_path = kwargs.get("config_path", None)
@@ -32,6 +35,9 @@ class BaseCharacter:
         self._visible_in_scene = config.get("visible", True)
         self._items = config.get("items", [])
 
+        self._ability = config.get("ability")
+        self._skill = config.get("skill")
+
     def get_name(self):
         return self._name
 
@@ -39,3 +45,7 @@ class BaseCharacter:
         if self._visible_in_scene:
             return self._outlook
         return ""
+
+    @abstractmethod
+    def get_agent(self):
+        pass
