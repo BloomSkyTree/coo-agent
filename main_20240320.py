@@ -32,7 +32,8 @@ if __name__ == '__main__':
             eval(input("输入执行的代码："))
         else:
             try:
-                player_input = scene_manager.player_agent(auth)
+                player_input = input(f"{auth}：")
+                scene_manager.player_role_play(auth, player_input)
                 # router_result = re.split("[,，、]", pl_command_router_agent()["content"].strip())
                 # for router in router_result:
                 #     try_eval_message(agents_router[router], player_input)

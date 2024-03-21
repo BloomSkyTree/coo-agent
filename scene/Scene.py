@@ -2,6 +2,9 @@ from collections import OrderedDict
 from typing import Dict, List
 
 import yaml
+from agentscope.message import Msg
+from agentscope.msghub import MsgHubManager, msghub
+from loguru import logger
 
 from characters.NonPlayerCharacter import NonPlayerCharacter
 from characters.PlayerCharacter import PlayerCharacter
@@ -19,6 +22,7 @@ class Scene:
     _keeper_commands: List[str]
 
     _config_path: str
+    _message_hub: MsgHubManager
 
     def __init__(self, **kwargs):
         config = kwargs
@@ -35,28 +39,22 @@ class Scene:
         self._memory = config.get("memory", [])
         self._keeper_commands = config.get("keeper_commands", [])
 
+        self._message_hub = msghub(participants=[])
+
     def add_player(self, character: PlayerCharacter):
         self._players[character.get_name()] = character
-        for character in self._non_player_characters.values():
-            character.reset_audience(list(self._non_player_characters.values()) + list(self._players.values()))
-
 
     def remove_player(self, name):
         del self._players[name]
-        for character in self._non_player_characters.values():
-            character.reset_audience(list(self._non_player_characters.values()) + list(self._players.values()))
 
     def add_non_player_character(self, character):
         self._non_player_characters[character.get_name()] = character
-        for character_name in self._non_player_characters:
-            character = self._non_player_characters[character_name]
-            character.reset_audience(list(self._non_player_characters.values()))
+        self._message_hub.add(character.get_agent())
 
     def remove_non_player_character(self, name):
+        character = self._non_player_characters[name]
+        self._message_hub.delete(character.get_agent())
         del self._non_player_characters[name]
-        for character_name in self._non_player_characters:
-            character = self._non_player_characters[character_name]
-            character.reset_audience(list(self._non_player_characters.values()))
 
     def add_interactive_object(self, obj):
         self._interactive_items.append(obj)
@@ -110,3 +108,11 @@ class Scene:
         else:
             return self._players[character_name]
 
+    def player_role_play(self, player_name: str, role_play: str):
+        if player_name in self._players:
+            self._message_hub.broadcast(Msg(
+                name=player_name,
+                content=f"{player_name}：{role_play}"
+            ))
+        else:
+            logger.warning(f"未找到对应玩家：{player_name}，忽略此次消息。")

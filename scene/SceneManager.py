@@ -1,5 +1,8 @@
 import os
 from typing import Union
+
+from agentscope import msghub
+from agentscope.msghub import MsgHubManager
 from loguru import logger
 
 from agents.KeeperControlledAgent import KeeperControlledAgent
@@ -12,7 +15,8 @@ class SceneManager:
     _config_root_path: str
     _current_scene: Union[Scene, None]
     _panorama_agent: KeeperControlledAgent
-    _character_outlook_manager: KeeperControlledAgent
+    _character_outlook_agent: KeeperControlledAgent
+
 
     def __init__(self, config_root_path):
         self._config_root_path = config_root_path
@@ -28,7 +32,7 @@ class SceneManager:
             use_memory=True
         )
 
-        self._character_outlook_manager = KeeperControlledAgent(
+        self._character_outlook_agent = KeeperControlledAgent(
             name="character outlook agent",
             sys_prompt="你是一个人物形象描述助手。根据提供的人物信息，对人物的外表、神态进行描写。"
                        "注意，你描述的信息不应超出被提供的信息的范围，且不允许进行心理描写。"
@@ -77,14 +81,13 @@ class SceneManager:
             logger.info(f"已加载非玩家角色：{character_name}")
 
     def character_outlook(self, character_name: str):
-        self._character_outlook_manager(self._current_scene.get_character(character_name).get_look_prompt())
+        self._character_outlook_agent(self._current_scene.get_character(character_name).get_look_prompt())
 
     # def character_say(self, character_name:str, content: str, expression: str):
     #     self._current_scene.get_character(character_name)(f"进行以角色扮演：\n神态、动作：{expression}，\n说话内容：{content}")
 
-    def character_act(self, character_name:str, act: str):
+    def character_act(self, character_name: str, act: str):
         self._current_scene.get_character(character_name)(f"进行以下动作的角色扮演：{act}")
 
-    def player_agent(self, player_name):
-        return self._current_scene.get_character(player_name)()
-
+    def player_role_play(self, player_name, role_play):
+        return self._current_scene.player_role_play(player_name, role_play)
