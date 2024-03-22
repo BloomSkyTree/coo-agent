@@ -29,7 +29,8 @@ if __name__ == '__main__':
             for router in router_result:
                 try_eval_message(agents_router[router.strip()], keeper_command)
         elif auth == "eval":
-            eval(input("输入执行的代码："))
+            code = input("输入执行的代码：")
+            eval(code)
         else:
             try:
                 player_input = input(f"{auth}：")

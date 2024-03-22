@@ -110,9 +110,15 @@ class Scene:
 
     def player_role_play(self, player_name: str, role_play: str):
         if player_name in self._players:
-            self._message_hub.broadcast(Msg(
+            message = Msg(
                 name=player_name,
                 content=f"{player_name}：{role_play}"
-            ))
+            )
+            self._message_hub.broadcast(message)
+            return message
         else:
             logger.warning(f"未找到对应玩家：{player_name}，忽略此次消息。")
+            return None
+
+    def add_listener(self, agent):
+        self._message_hub.add(agent)

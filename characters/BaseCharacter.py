@@ -49,3 +49,6 @@ class BaseCharacter:
     @abstractmethod
     def get_agent(self):
         pass
+
+    def get_skill_value(self, skill_name):
+        return self._skill[skill_name]
