@@ -54,14 +54,14 @@ class SceneManager:
         self._check_agent = KeeperControlledAgent(
             name="检定管理器",
             sys_prompt="你是一个COC智能检定管理器。根据剧本内容，你需要判断某一角色是否需要进行检定，并进行不同的python代码执行。"
-                       "如果该角色没有进行什么特别的行动，或其目标从常理来说即使不依赖特定技能也能达成，则不需要检定，执行scene_manager.do_not_need_check(character_name: str)方法。\n"
-                       "如果该角色的目标从常理来无论如何都不可能达成，则不需要检定，执行scene_manager.impossible_check(character_name: str)方法。\n"
+                       "如果该角色没有进行什么特别的行动，或其目标从常理来说即使不依赖特定技能也能达成，则不需要检定，self.do_not_need_check(character_name: str)方法。\n"
+                       "如果该角色的目标从常理来无论如何都不可能达成，则不需要检定，self.impossible_check(character_name: str)方法。\n"
                        "如果需要进行检定，则需要判断检定的困难级别（普通，困难，极难）。\n"
                        "以下是困难级别相关的说明：\n"
                        "普通：具有对应的技能，在正常发挥的情况下能办到。\n"
                        "困难：即使具有对应的技能，也因为自身状态或环境的恶劣，使得达成的难度更上一层楼。\n"
                        "极难：对于常人来说，依赖本身技能很难办到，需要超常发挥且运气极佳才能达成；又或者自身状态或环境极端恶劣，使得正常发挥几乎不可能。\n"
-                       "如果该角色需要检定，执行scene_manager.do_check(character_name: str, skill:str, difficulty: str)方法。\n"
+                       "如果该角色需要检定，self.do_check(character_name: str, skill:str, difficulty: str)方法。\n"
                        "其中，skill为需要进行检定的技能名称，可选值包括：侦查、图书馆使用、聆听、闪避、斗殴、潜行、说服、话术、魅惑、恐吓、偷窃、神秘学、克苏鲁神话。\n"
                        "决定调用时需要传入的参数（字符串），直接给出需要执行的python代码。除非命令中使用英文，否则参数字符串取值一般是中文。\n"
                        "注意：你只能回答能直接由eval()执行的python代码，不能回答其他多余的内容。",
@@ -116,16 +116,20 @@ class SceneManager:
         self._script_listener_agent.observe(outlook_message)
 
     def character_act(self, character_name: str, act: str):
-        rp_message = self._current_scene.get_character(character_name)(f"进行以下动作的角色扮演：{act}")
+        check_result = self.judge_check(character_name, act)
+        if check_result is None:
+            rp_message = self._current_scene.get_character(character_name)(f"进行以下动作的角色扮演：{act}")
+        else:
+            rp_message = self._current_scene.get_character(character_name)(f"进行以下动作的角色扮演：{act}，且该动作的结果为：{check_result}\n注意，在扮演和描述时，不能直接说出成功与否。")
         if rp_message is not None:
             self._script_listener_agent.observe(rp_message)
-            self.judge_check(rp_message)
+
 
     def player_role_play(self, player_name, role_play):
         rp_message = self._current_scene.player_role_play(player_name, role_play)
         if rp_message is not None:
             self._script_listener_agent.observe(rp_message)
-            self.judge_check(rp_message)
+            self.judge_check(player_name, role_play)
 
     def get_script(self):
         memory = self._script_listener_agent.memory
@@ -165,15 +169,18 @@ class SceneManager:
             check_info += "极难成功，完成了目标。"
 
         logger.info(check_info)
+        return check_info
 
 
-    def judge_check(self, message):
+    def judge_check(self, character, act):
         scene_description = self._current_scene.get_panorama_prompt()
-        character = message["name"]
         script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
-        prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n\n判断{character}是否需要检定，并进行对应的函数调用。"
-        self._check_agent(prompt)
+        prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n\n判断以下内容是否需要检定，并进行对应的函数调用：\n" \
+                 f"{character} 尝试进行以下言行：{act}"
+        check = self._check_agent(prompt)["content"]
+        check_result = eval(check)
         self._check_agent.memory.clear()
+        return check_result
 
     def do_not_need_check(self, character_name: str):
         logger.info(f"{character_name}的行动不需要进行检定。")

@@ -8,6 +8,7 @@ def try_eval_message(agent, command):
         python_code = agent(command)["content"]
         eval(python_code)
     except Exception as e:
+        logger.error("尝试执行以下python代码失败：{python_code}")
         try_eval_message(agent, command)
 
 
