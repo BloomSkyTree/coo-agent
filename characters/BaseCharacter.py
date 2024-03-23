@@ -50,5 +50,9 @@ class BaseCharacter:
     def get_agent(self):
         pass
 
-    def get_skill_value(self, skill_name):
-        return self._skill[skill_name]
+    def get_ability_or_skill_value(self, skill_or_ability_name):
+        if skill_or_ability_name in self._skill:
+            return self._skill[skill_or_ability_name]
+        elif skill_or_ability_name in self._ability:
+            return self._ability[skill_or_ability_name]
+        return self._skill[skill_or_ability_name] if skill_or_ability_name in self._skill else None

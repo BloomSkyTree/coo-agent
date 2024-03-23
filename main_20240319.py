@@ -2,7 +2,7 @@ import os
 
 from agentscope.agents import UserAgent
 
-from agents.singleton import character_outlook_agent
+from outdated.singleton import character_outlook_agent
 from characters.NonPlayerCharacter import NonPlayerCharacter
 
 

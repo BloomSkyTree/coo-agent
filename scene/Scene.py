@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict
 from typing import Dict, List
 
@@ -105,8 +106,10 @@ class Scene:
     def get_character(self, character_name):
         if character_name in self._non_player_characters:
             return self._non_player_characters[character_name]
-        else:
+        elif character_name in self._players:
             return self._players[character_name]
+        else:
+            return None
 
     def player_role_play(self, player_name: str, role_play: str):
         if player_name in self._players:
