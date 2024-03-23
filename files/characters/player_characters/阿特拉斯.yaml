@@ -1,6 +1,13 @@
 name: "阿特拉斯"
-outlook: "少年，金色短发，温和易近"
+outlook: "少年，金色短发，戴着眼镜，文质彬彬，温和易近，身批风衣，脚上为了旅行方面穿着长靴"
 age: "十八岁"
+stable_diffusion_tags:
+  - "1boy"
+  - "blonde_hair"
+  - "short_hair"
+  - "boots"
+  - "trench_coat"
+  - "glasses"
 ability:
   力量: 60
   体质: 60

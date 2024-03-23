@@ -13,6 +13,7 @@ from items.BaseItem import BaseItem
 
 
 class Scene:
+    _name: str
     _era: str
     _position: str
     _description: str
@@ -21,6 +22,8 @@ class Scene:
     _interactive_items: List[BaseItem]
     _memory: List[str]
     _keeper_commands: List[str]
+
+    _stable_diffusion_tags: List[str]
 
     _config_path: str
     _message_hub: MsgHubManager
@@ -31,6 +34,7 @@ class Scene:
         if self._config_path:
             with open(self._config_path, 'r', encoding="utf-8") as file:
                 config = yaml.load(file, Loader=yaml.FullLoader)
+        self._name = config.get("name")
         self._era = config.get("era")
         self._position = config.get("position")
         self._description = config.get("description")
@@ -39,8 +43,12 @@ class Scene:
         self._interactive_items = []
         self._memory = config.get("memory", [])
         self._keeper_commands = config.get("keeper_commands", [])
+        self._stable_diffusion_tags = config.get("stable_diffusion_tags", [])
 
         self._message_hub = msghub(participants=[])
+
+    def get_name(self):
+        return self._name
 
     def add_player(self, character: PlayerCharacter):
         self._players[character.get_name()] = character
@@ -90,18 +98,24 @@ class Scene:
 
     def serialize(self):
         return {
+            "name": self._name,
             "era": self._era,
             "position": self._position,
             "description": self._description,
             "interactive_items": self._interactive_items,
             "memory": self._memory,
-            "keeper_commands": self._keeper_commands
+            "keeper_commands": self._keeper_commands,
+            "stable_diffusion_tags": self._stable_diffusion_tags
         }
 
-    def save(self):
+    def save(self, config_root_path):
         content = self.serialize()
+        if not self._config_path:
+            self._config_path = config_root_path + f"/scenes/{self._name}.yaml"
         with open(self._config_path, "w", encoding="utf-8") as yaml_file:
             yaml.dump(content, yaml_file, allow_unicode=True, sort_keys=False)
+        for character in self.get_character_list():
+            character.save(config_root_path)
 
     def get_character(self, character_name):
         if character_name in self._non_player_characters:
@@ -128,3 +142,6 @@ class Scene:
 
     def add_listener(self, agent):
         self._message_hub.add(agent)
+
+    def get_stable_diffusion_tags(self):
+        return self._stable_diffusion_tags

@@ -8,22 +8,22 @@ from items.BaseItem import BaseItem
 
 
 class BaseCharacter:
+    _config_path: str
+    _memory: List[str]
     _name: str
     _outlook: str
     _age: str
     _tone: str
     _description: str
-    _visible_in_scene: bool
-
-    _items: List[BaseItem]
 
     _ability: Dict[str, int]
+    _stable_diffusion_tags: List[str]
 
     def __init__(self, **kwargs):
         config = kwargs
-        config_path = kwargs.get("config_path", None)
-        if config_path:
-            with open(config_path, 'r', encoding="utf-8") as file:
+        self._config_path = kwargs.get("config_path", None)
+        if self._config_path:
+            with open(self._config_path, 'r', encoding="utf-8") as file:
                 config = yaml.load(file, Loader=yaml.FullLoader)
 
         self._name = config.get("name")
@@ -32,19 +32,18 @@ class BaseCharacter:
         self._tone = config.get("tone", "")
         self._personality = config.get("personality", "")
         self._description = config.get("description", "")
-        self._visible_in_scene = config.get("visible", True)
-        self._items = config.get("items", [])
+        self._stable_diffusion_tags = config.get("stable_diffusion_tags", [])
 
         self._ability = config.get("ability")
         self._skill = config.get("skill")
 
+        self._memory = config.get("memory", [])
+
     def get_name(self):
         return self._name
 
-    def get_look_prompt(self):
-        if self._visible_in_scene:
-            return self._outlook
-        return ""
+    def get_outlook(self):
+        return self._outlook
 
     @abstractmethod
     def get_agent(self):
@@ -56,3 +55,17 @@ class BaseCharacter:
         elif skill_or_ability_name in self._ability:
             return self._ability[skill_or_ability_name]
         return self._skill[skill_or_ability_name] if skill_or_ability_name in self._skill else None
+
+    def get_stable_diffusion_tags(self):
+        return self._stable_diffusion_tags
+
+    @abstractmethod
+    def serialize(self):
+        pass
+
+    @abstractmethod
+    def save(self, config_root_path):
+        pass
+
+    def add_memory(self, memory):
+        self._memory.append(memory)

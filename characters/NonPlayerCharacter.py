@@ -9,27 +9,24 @@ from characters.BaseCharacter import BaseCharacter
 
 
 class NonPlayerCharacter(BaseCharacter):
-    _short_term_memory: List[str]
-    _long_term_memory: List[str]
+
     _belong_to_scene: Type["Scene"]
 
     _agent: KeeperControlledAgent
+    _model_config_name: str
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config = kwargs
-        config_path = kwargs.get("config_path", None)
-        if config_path:
-            with open(config_path, 'r', encoding="utf-8") as file:
+        if self._config_path:
+            with open(self._config_path, 'r', encoding="utf-8") as file:
                 config = yaml.load(file, Loader=yaml.FullLoader)
+        self._model_config_name = config.get("model_config_name")
 
-        self._short_term_memory = config.get("short_term_memory", [])
-        self._long_term_memory = config.get("long_term_memory", [])
 
         self._agent = KeeperControlledAgent(
             name=self._name,
             sys_prompt=self.generate_system_prompt(),
-            model_config_name=config.get("model_config_name"),
+            model_config_name=self._model_config_name,
             use_memory=True
         )
 
@@ -60,11 +57,9 @@ class NonPlayerCharacter(BaseCharacter):
                             f"扮演时，不一定要说话，也可以只做动作或表情。\n" \
                             f"扮演时的格式如下：\n" \
                             f"自己的名字：（表情，神态，动作）“说话的内容（如果不说话，则不需要此部分）”"
-        if self._short_term_memory or self._long_term_memory:
+        if self._memory:
             character_prompt += "你的记忆：\n"
-        for memory in self._short_term_memory:
-            character_prompt += f"{memory}\n"
-        for memory in self._long_term_memory:
+        for memory in self._memory:
             character_prompt += f"{memory}\n"
         return character_prompt
 
@@ -86,3 +81,26 @@ class NonPlayerCharacter(BaseCharacter):
 
     def rm_audience(self, character: "BaseCharacter"):
         return self._agent.rm_audience(character.get_agent())
+
+    def serialize(self):
+        return {
+            "name": self._name,
+            "outlook": self._outlook,
+            "age": self._age,
+            "tone": self._tone,
+            "description": self._description,
+            "personality": self._personality,
+            "ability": self._ability,
+            "skill": self._skill,
+            "stable_diffusion_tags": self._stable_diffusion_tags,
+            "memory": self._memory,
+            "model_config_name": self._model_config_name
+        }
+
+    def save(self,config_root_path):
+        if self._config_path is None:
+            self._config_path = config_root_path + f"/characters/non_player_characters/{self._name}.yaml"
+        content = self.serialize()
+        with open(self._config_path, "w", encoding="utf-8") as yaml_file:
+            yaml.dump(content, yaml_file, allow_unicode=True, sort_keys=False)
+

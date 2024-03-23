@@ -57,7 +57,7 @@ if __name__ == '__main__':
         model_config_name="qwen-max",
         use_memory=True
     )
-    character_outlook_agent(npc.get_look_prompt())
+    character_outlook_agent(npc.get_outlook())
 
     # scene_memory_agent = KeeperControlledAgent(
     #     name="scene memory agent",

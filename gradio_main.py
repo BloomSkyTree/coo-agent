@@ -38,6 +38,10 @@ def script_for_kp():
         message["content"] = re.sub(r"\n+", "\n", content)
     return "\n\n".join([f"{m['name']}\n{m['content']}" for m in script])
 
+def pl_check_info():
+    return "\n".join(scene_manager.get_player_check_info())
+def npc_check_info():
+    return "\n".join(scene_manager.get_npc_check_info())
 
 with gr.Blocks() as app:
     with gr.Row():
@@ -46,8 +50,9 @@ with gr.Blocks() as app:
             player_act_box = gr.Textbox(label="行动")
             player_say_box = gr.Textbox(label="发言")
             pl_submit_btn = gr.Button("提交行动")
-        output_for_pl = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_pl, every=1)
-
+        with gr.Column():
+            output_for_pl = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_pl, every=1)
+            pl_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value=pl_check_info, every=1)
 
     @pl_submit_btn.click(inputs=[player_name_box, player_act_box, player_say_box])
     def pl_submit(name, act, say):
@@ -67,7 +72,9 @@ with gr.Blocks() as app:
         with gr.Column():
             kp_say_box = gr.Textbox(label="KP叙述")
             kp_submit_btn = gr.Button("提交叙述")
-        output_for_kp = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_kp, every=1)
+        with gr.Column():
+            output_for_kp = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_kp, every=1)
+            npc_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value=npc_check_info, every=1)
 
 
     @kp_submit_btn.click(inputs=[kp_say_box])

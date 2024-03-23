@@ -2,7 +2,7 @@ import os
 import random
 from http import HTTPStatus
 from pathlib import PurePosixPath
-from typing import Union
+from typing import Union, List
 from urllib.parse import unquote, urlparse
 
 import requests
@@ -31,8 +31,12 @@ class SceneManager:
     _script_listener_agent: KeeperControlledAgent
     _scene_manager_agent: KeeperControlledAgent
     _stable_diffusion_agent: KeeperControlledAgent
+    _character_memory_agent: KeeperControlledAgent
 
     _current_illustration_path: Union[str, None]
+
+    _player_check_info: List[str]
+    _npc_check_info: List[str]
 
     def __init__(self, config_root_path):
         self._config_root_path = config_root_path
@@ -43,7 +47,7 @@ class SceneManager:
                        "输入有以下几种类型："
                        "进入、开启、启用场景：调用scene_manager.enter_scene(scene_name: str)方法。"
                        "对场景进行描绘、与周围的景物相关（人物外貌的描述不在此列）时：调用scene_manager.draw_a_panorama()方法。。\n"
-                       "对场景本身或场景中的物件造成持久的影响时：调用scene_manager.generate_scene_memory(full_command: str)\n"
+                       "对场景本身或场景中的物件造成持久的影响、留下痕迹时：调用scene_manager.generate_scene_memory(full_command: str)\n"
                        "对场景进行归档、保存或存档时：调用scene_manager.save()\n"
                        "要求绘制即时插图时：调用scene_manager.illustrate()\n"
                        "对人物外貌进行描述时：调用scene_manager.character_outlook(character_name:str)方法。\n"
@@ -68,7 +72,7 @@ class SceneManager:
 
         self._illustration_agent = KeeperControlledAgent(
             name="即时描述",
-            sys_prompt="你是一个画面描述助手。根据提供的场景信息和剧本信息，你需要为其生成画面背景、人物样貌、衣着等画面描述。"
+            sys_prompt="你是一个画面描述助手。根据提供的场景信息和剧本信息，你需要为人物描述补充标签。"
                        "注意，你描述的信息、登场人物不应超出被提供的信息的范围；"
                        "你的描述应注重画面感,不需要说明年代和地点，不需要传递太多信息。"
                        "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。"
@@ -79,12 +83,20 @@ class SceneManager:
 
         self._stable_diffusion_agent = KeeperControlledAgent(
             name="stable diffusion agent",
-            sys_prompt="你是一个画面总结助手，根据所提供的画面信息，你需要用英文标签式的形式对画面进行总结概括。"
-                       "在总结时，优先列举最重要的画面元素，例如场景的氛围、构图，人物的数量、外表、衣着、动作；尽可能简短，不要超过75个英文单词。"
-                       "描述中不许出现人物的名字，优先以1girl和1boy之类的标签指代。\n"
-                       "例：一个穿着白色裙子的金发少女站在河边\n"
-                       "其结果可以为：1girl, white dress, blonde hair, standing, river\n"
-                       "回答时，标签使用英文逗号分隔。",
+            sys_prompt="你是一个画面总结助手，根据所提供的剧本信息，你需要用英文标签式的形式对剧本中角色的神态、表情、动作进行总结概括。"
+                       "你有以下可选的神态、表情标签：smile,laughing,grin,teasing_smile,smug,naughty_face,"
+                       "evil smile,crazy_smile,happy_tears,"
+                       "tear,crying,crying_with_eyes_open,streaming_tears,teardrop,tearing_up,tears,wiping_tears,"
+                       "frustrated,frustrated_brow,annoyed,anguish,sigh,gloom,disappointed,despair,"
+                       "frown,furrowed_brow,disgust,disdain,contempt,angry,glaring,serious,screaming,shouting,"
+                       "expressionless,sleepy,drunk,bored,thinking,lonely,blush,shy,embarrass,facepalm,flustered,"
+                       "sweat,scared,endured_face,crazy,trembling,moaning,\n"
+                       "你有以下可选的动作标签：standing,on stomach,kneeling,on_side,on_stomach,"
+                       "leaning_to_the_side,fighting_stance,leaning_forward,afloat,lying,comforting,cuddling,"
+                       "dancing,climbing,chasing,hitting,imagining,jumping,flying_kick,kicking,licking,painting,"
+                       "reading,sing,showering,slashing,sleeping,smelling,smoking,"
+                       "sneezing,yawning,hiding,walking,waking_up\n"
+                       "回答时，标签使用英文逗号分隔，只允许回答标签，不需要回答其他内容。",
             model_config_name="qwen-max",
             use_memory=True
         )
@@ -132,9 +144,27 @@ class SceneManager:
             use_memory=True
         )
 
+        self._character_memory_agent = KeeperControlledAgent(
+            name="角色回忆代理",
+            sys_prompt="你是一个角色回忆代理。根据剧本内容，你需要为指定的角色生成简短的回忆，包括物件的得失、人际关系的变动以及别的令人印象深刻的事。"
+                       "生成回忆时，不需要对自身形象和周围景色进行描写，只需要关注发生的事情。用语尽量简短，且应为单行文本。"
+                       "注意：剧本中的Keeper是旁白的别称，不要将其当做登场人物。"
+                       "回答时，以第三人称视角和描述过去的口吻进行。只输出回忆内容，不允许回答任何多余的内容。",
+
+            model_config_name="qwen-max",
+            use_memory=True
+        )
+        self._current_scene = None
         self._current_illustration_path = None
+        self._player_check_info = []
+        self._npc_check_info = []
 
     def enter_scene(self, scene_name):
+        if self._current_scene is not None:
+            if scene_name == self._current_scene.get_name():
+                logger.warning("将切换的场景为当前场景，不进行切换。")
+                return
+            self.save()
         scene_config_path = self._config_root_path + f"/scenes/{scene_name}.yaml"
         self._current_scene = Scene(config_path=scene_config_path)
         self._current_scene.add_listener(self._script_listener_agent)
@@ -148,7 +178,11 @@ class SceneManager:
         self._current_scene.add_memory(memory)
 
     def save(self):
-        self._current_scene.save()
+        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
+        for character in self._current_scene.get_character_list():
+            memory = self._character_memory_agent(f"剧本如下：\n{script}\n请以{character.get_name()}的视角，生成回忆。")["content"]
+            character.add_memory(memory)
+        self._current_scene.save(self._config_root_path)
 
     def get_character(self, character_name):
         character = self._current_scene.get_character(character_name)
@@ -178,7 +212,7 @@ class SceneManager:
             logger.warning(f"无法找到名为{character_name}的玩家或非玩家角色。将不会描述其外貌。")
             return
         outlook_message = self._character_outlook_agent(
-            self._current_scene.get_character(character_name).get_look_prompt()
+            self._current_scene.get_character(character_name).get_outlook()
         )
         self._script_listener_agent.observe(outlook_message)
 
@@ -190,7 +224,8 @@ class SceneManager:
         check_result = self.judge_check(character_name, act)
         if isinstance(character, PlayerCharacter):
             # self._script_listener_agent.observe(Msg(name="旁白", content=f"{character_name}尝试进行行动：{act}"))
-            logger.info(check_result)
+            if check_result is not None:
+                logger.info(check_result)
         else:
             if check_result is None:
                 rp_message = self._current_scene.get_character(character_name)(f"进行以下动作的角色扮演：{act}")
@@ -252,6 +287,10 @@ class SceneManager:
             check_info += "极难成功，完成了目标。"
 
         logger.info(check_info)
+        if isinstance(character, PlayerCharacter):
+            self._player_check_info.append(check_info)
+        else:
+            self._npc_check_info.append(check_info)
         return check_info
 
     def judge_check(self, character, act):
@@ -282,21 +321,21 @@ class SceneManager:
         return self._scene_manager_agent(x)
 
     def illustrate(self):
-        scene_description = self._current_scene.get_panorama_prompt()
-        outlook = "\n".join(
-            [c.get_name() + "：" + c.get_look_prompt() for c in self._current_scene.get_character_list()])
-        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()][-4:])
-        prompt = f"场景如下：\n{scene_description}\n人物外貌：{outlook} \n剧本如下：\n{script}\n\n"
-        sd_agent_prompt = self._illustration_agent(prompt)
-        sd_prompt = self._stable_diffusion_agent(sd_agent_prompt)
+
+        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
+        tags = [tag for tag in self._current_scene.get_stable_diffusion_tags()]
+        for character in self._current_scene.get_character_list():
+            character_tags = character.get_stable_diffusion_tags()
+            tags.extend(character_tags)
+            prompt = f"剧本如下：\n{script}\n\n，为{character.get_name()}提供神态、表情和动作方面的标签。"
+            extended_tags = self._stable_diffusion_agent(prompt)["content"].split(",")
+            tags.extend(extended_tags)
+        logger.info(f"使用以下tag进行文生图：{tags}")
         rsp = ImageSynthesis.call(model=ImageSynthesis.Models.wanx_v1,
-                                  prompt="anime, " + sd_prompt["content"],
+                                  prompt=",".join(tags),
                                   n=1,
                                   size='1024*1024')
         if rsp.status_code == HTTPStatus.OK:
-            # print(rsp.output)
-            # print(rsp.usage)
-            # save file to directory
             for result in rsp.output.results:
                 file_name = PurePosixPath(unquote(urlparse(result.url).path)).parts[-1]
                 with open(self._config_root_path + f"/images/{file_name}", 'wb+') as f:
@@ -308,3 +347,9 @@ class SceneManager:
 
     def get_illustration_path(self):
         return self._current_illustration_path
+
+    def get_player_check_info(self):
+        return self._player_check_info
+
+    def get_npc_check_info(self):
+        return self._npc_check_info
