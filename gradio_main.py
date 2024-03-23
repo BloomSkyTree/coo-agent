@@ -87,4 +87,7 @@ with gr.Blocks() as app:
             logger.error(f"尝试执行以下python代码失败：{python_code}")
 
 
+    gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
+
+
 app.launch()

@@ -1,6 +1,14 @@
 import os
 import random
+from http import HTTPStatus
+from pathlib import PurePosixPath
 from typing import Union
+from urllib.parse import unquote, urlparse
+
+import requests
+from dashscope import ImageSynthesis
+
+os.environ["DASHSCOPE_API_KEY"] = "sk-d1c122e76c8a4d11b78b3734e48960c6"
 
 from agentscope import msghub
 from agentscope.memory import TemporaryMemory
@@ -18,10 +26,13 @@ class SceneManager:
     _config_root_path: str
     _current_scene: Union[Scene, None]
     _panorama_agent: KeeperControlledAgent
-    _instant_agent: KeeperControlledAgent
+    _illustration_agent: KeeperControlledAgent
     _character_outlook_agent: KeeperControlledAgent
     _script_listener_agent: KeeperControlledAgent
     _scene_manager_agent: KeeperControlledAgent
+    _stable_diffusion_agent: KeeperControlledAgent
+
+    _current_illustration_path: Union[str, None]
 
     def __init__(self, config_root_path):
         self._config_root_path = config_root_path
@@ -34,6 +45,7 @@ class SceneManager:
                        "对场景进行描绘、与周围的景物相关（人物外貌的描述不在此列）时：调用scene_manager.draw_a_panorama()方法。。\n"
                        "对场景本身或场景中的物件造成持久的影响时：调用scene_manager.generate_scene_memory(full_command: str)\n"
                        "对场景进行归档、保存或存档时：调用scene_manager.save()\n"
+                       "要求绘制即时插图时：调用scene_manager.illustrate()\n"
                        "对人物外貌进行描述时：调用scene_manager.character_outlook(character_name:str)方法。\n"
                        "描述一个人物在进行某一行动（登场不计入在内）时，调用scene_manager.character_act(character_name:str, act: str)方法，其中act字段应包含原始指令中对动作的详细描述。\n"
                        "决定调用时需要传入的参数（字符串），直接给出需要执行的python代码。除非命令中使用英文，否则参数字符串取值一般是中文。\n"
@@ -54,16 +66,28 @@ class SceneManager:
             use_memory=True
         )
 
-        self._instant_agent = KeeperControlledAgent(
+        self._illustration_agent = KeeperControlledAgent(
             name="即时描述",
-            sys_prompt="你是一个画面描述助手。根据提供的场景信息和剧本信息，你需要为其生成剧本最后一部分的画面描述。"
+            sys_prompt="你是一个画面描述助手。根据提供的场景信息和剧本信息，你需要为其生成画面背景、人物样貌、衣着等画面描述。"
                        "注意，你描述的信息、登场人物不应超出被提供的信息的范围；"
                        "你的描述应注重画面感,不需要说明年代和地点，不需要传递太多信息。"
-                       "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。",
+                       "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。"
+                       "注意，Keeper相当于旁白，不是登场人物。",
             model_config_name="qwen-max",
             use_memory=True
         )
 
+        self._stable_diffusion_agent = KeeperControlledAgent(
+            name="stable diffusion agent",
+            sys_prompt="你是一个画面总结助手，根据所提供的画面信息，你需要用英文标签式的形式对画面进行总结概括。"
+                       "在总结时，优先列举最重要的画面元素，例如场景的氛围、构图，人物的数量、外表、衣着、动作；尽可能简短，不要超过75个英文单词。"
+                       "描述中不许出现人物的名字，优先以1girl和1boy之类的标签指代。\n"
+                       "例：一个穿着白色裙子的金发少女站在河边\n"
+                       "其结果可以为：1girl, white dress, blonde hair, standing, river\n"
+                       "回答时，标签使用英文逗号分隔。",
+            model_config_name="qwen-max",
+            use_memory=True
+        )
 
         self._character_outlook_agent = KeeperControlledAgent(
             name="人物形象描述",
@@ -107,6 +131,8 @@ class SceneManager:
             model_config_name="qwen-max",
             use_memory=True
         )
+
+        self._current_illustration_path = None
 
     def enter_scene(self, scene_name):
         scene_config_path = self._config_root_path + f"/scenes/{scene_name}.yaml"
@@ -255,10 +281,30 @@ class SceneManager:
         self._script_listener_agent.observe(x)
         return self._scene_manager_agent(x)
 
-    # def get_instant_prompt(self, ):
-    #     scene_description = self._current_scene.get_panorama_prompt()
-    #     outlook = "\n".join([c.get_name() + "：" + c.get_look_prompt() for c in self._current_scene.get_character_list()])
-    #     script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
-    #     prompt = f"场景如下：\n{scene_description}\n人物外貌：{outlook} \n剧本如下：\n{script}\n\n"
-    #     return prompt
+    def illustrate(self):
+        scene_description = self._current_scene.get_panorama_prompt()
+        outlook = "\n".join(
+            [c.get_name() + "：" + c.get_look_prompt() for c in self._current_scene.get_character_list()])
+        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()][-4:])
+        prompt = f"场景如下：\n{scene_description}\n人物外貌：{outlook} \n剧本如下：\n{script}\n\n"
+        sd_agent_prompt = self._illustration_agent(prompt)
+        sd_prompt = self._stable_diffusion_agent(sd_agent_prompt)
+        rsp = ImageSynthesis.call(model=ImageSynthesis.Models.wanx_v1,
+                                  prompt="anime, " + sd_prompt["content"],
+                                  n=1,
+                                  size='1024*1024')
+        if rsp.status_code == HTTPStatus.OK:
+            # print(rsp.output)
+            # print(rsp.usage)
+            # save file to directory
+            for result in rsp.output.results:
+                file_name = PurePosixPath(unquote(urlparse(result.url).path)).parts[-1]
+                with open(self._config_root_path + f"/images/{file_name}", 'wb+') as f:
+                    f.write(requests.get(result.url).content)
+                self._current_illustration_path = self._config_root_path + f"/images/{file_name}"
+        else:
+            logger.error('SDXL文生图失败, status_code: %s, code: %s, message: %s' %
+                         (rsp.status_code, rsp.code, rsp.message))
 
+    def get_illustration_path(self):
+        return self._current_illustration_path
