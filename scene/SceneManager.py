@@ -18,6 +18,7 @@ class SceneManager:
     _config_root_path: str
     _current_scene: Union[Scene, None]
     _panorama_agent: KeeperControlledAgent
+    _instant_agent: KeeperControlledAgent
     _character_outlook_agent: KeeperControlledAgent
     _script_listener_agent: KeeperControlledAgent
     _scene_manager_agent: KeeperControlledAgent
@@ -52,6 +53,17 @@ class SceneManager:
             model_config_name="qwen-max",
             use_memory=True
         )
+
+        self._instant_agent = KeeperControlledAgent(
+            name="即时描述",
+            sys_prompt="你是一个画面描述助手。根据提供的场景信息和剧本信息，你需要为其生成剧本最后一部分的画面描述。"
+                       "注意，你描述的信息、登场人物不应超出被提供的信息的范围；"
+                       "你的描述应注重画面感,不需要说明年代和地点，不需要传递太多信息。"
+                       "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。",
+            model_config_name="qwen-max",
+            use_memory=True
+        )
+
 
         self._character_outlook_agent = KeeperControlledAgent(
             name="人物形象描述",
@@ -151,7 +163,7 @@ class SceneManager:
             return
         check_result = self.judge_check(character_name, act)
         if isinstance(character, PlayerCharacter):
-            self._script_listener_agent.observe(Msg(name="旁白", content=f"{character_name}尝试进行行动：{act}"))
+            # self._script_listener_agent.observe(Msg(name="旁白", content=f"{character_name}尝试进行行动：{act}"))
             logger.info(check_result)
         else:
             if check_result is None:
@@ -163,6 +175,7 @@ class SceneManager:
                 self._script_listener_agent.observe(rp_message)
 
     def player_role_play(self, player_name, role_play):
+        self.get_character(player_name)
         rp_message = self._current_scene.player_role_play(player_name, role_play)
         if rp_message is not None:
             self._script_listener_agent.observe(rp_message)
@@ -204,7 +217,7 @@ class SceneManager:
                 check_info += "未达到所需级别，失败了。"
             else:
                 check_info += "普通成功，完成了目标。"
-        elif percent >= 1 / 4:
+        elif percent >= 1 / 5:
             if level_mapping[difficulty] > 2:
                 check_info += "未达到所需级别，失败了。"
             else:
@@ -238,5 +251,14 @@ class SceneManager:
     def impossible_check(self, character_name: str):
         logger.info(f"{character_name}的行动不可能达成，无需进行检定。")
 
-    def __call__(self, *args, **kwargs):
-        return self._scene_manager_agent(*args, **kwargs)
+    def __call__(self, x: Msg):
+        self._script_listener_agent.observe(x)
+        return self._scene_manager_agent(x)
+
+    # def get_instant_prompt(self, ):
+    #     scene_description = self._current_scene.get_panorama_prompt()
+    #     outlook = "\n".join([c.get_name() + "：" + c.get_look_prompt() for c in self._current_scene.get_character_list()])
+    #     script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
+    #     prompt = f"场景如下：\n{scene_description}\n人物外貌：{outlook} \n剧本如下：\n{script}\n\n"
+    #     return prompt
+

@@ -111,6 +111,9 @@ class Scene:
         else:
             return None
 
+    def get_character_list(self):
+        return list(self._non_player_characters.values()) + list(self._players.values())
+
     def player_role_play(self, player_name: str, role_play: str):
         if player_name in self._players:
             message = Msg(
