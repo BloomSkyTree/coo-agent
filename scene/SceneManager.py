@@ -30,6 +30,7 @@ class SceneManager:
     _character_outlook_agent: KeeperControlledAgent
     _script_listener_agent: KeeperControlledAgent
     _scene_manager_agent: KeeperControlledAgent
+    _check_agent: KeeperControlledAgent
     _stable_diffusion_agent: KeeperControlledAgent
     _character_memory_agent: KeeperControlledAgent
 
