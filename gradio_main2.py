@@ -48,7 +48,7 @@ with gr.Blocks() as app:
         with gr.Row():
             with gr.Column():
                 with gr.Row():
-                    gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
+                    gr.Image(type='filepath', label="头像", value=scene_manager.get_illustration_path, every=1)
                     with gr.Column():
                         with gr.Row():
                             str2 = gr.Textbox(label="力量", interactive=False, min_width=10)
@@ -104,7 +104,7 @@ with gr.Blocks() as app:
                         changeNpc_btn = gr.Button("切换", min_width=1, scale=1)
 
                     with gr.Row():
-                        gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
+                        gr.Image(type='filepath', label="头像", value=scene_manager.get_illustration_path, every=1)
                         with gr.Column():
                             with gr.Row():
                                 str1 = gr.Textbox(label="力量", interactive=False, min_width=10)
@@ -150,7 +150,8 @@ with gr.Blocks() as app:
                     except Exception as e:
                         logger.exception(e)
                         logger.error(f"尝试执行以下python代码失败：{python_code}")
-
+    with gr.Tab(label="img"):
+        gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
 
 
 
