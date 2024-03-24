@@ -102,7 +102,7 @@ def pl_check_info():
     return "\n".join(scene_manager.get_player_check_info())
 
 
-def npc_check_info():
+def npc_all_info():
     return "\n".join(scene_manager.get_all_check_info())
 
 
@@ -178,9 +178,9 @@ with gr.Blocks() as app:
                     dropdown_scene = gr.Dropdown(choices=selectable_scene_names(),
                                                  label="场景", min_width=1,
                                                  scale=15)
-                output_for_kp = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_pl,
+                output_for_kp = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_kp,
                                            every=1, )
-                kp_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value=pl_check_info, every=1)
+                kp_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value=npc_all_info, every=1)
                 with gr.Row():
                     kp_say_box = gr.Textbox(label="KP叙述", scale=15)
                     kp_submit_btn = gr.Button("提交叙述", min_width=1, scale=1)
