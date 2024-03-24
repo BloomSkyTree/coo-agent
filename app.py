@@ -26,6 +26,7 @@ def get_character(character_name):
         character = NonPlayerCharacter(config_path=npc_path)
     return character
 
+
 def selectable_scene_names():
     directory = config_root_path + "/scenes"
     scene_names = []
@@ -62,6 +63,7 @@ def get_selectable_character_ability_and_skill(character_name):
     for key in ability_and_skill:
         dataframe.append([key, ability_and_skill[key]])
     return dataframe
+
 
 def get_character_avatar(character_name):
     directory = config_root_path + "/images"
@@ -104,15 +106,23 @@ def npc_check_info():
     return "\n".join(scene_manager.get_all_check_info())
 
 
+# def get_character_memory(name):
+#     if name is not None and get_character(name) is not None:
+#         return "\n".join(get_character(name).get_memory())
+#     return ""
+
+
 with gr.Blocks() as app:
     for player_name in selectable_player_names():
+
+
         with gr.Tab(label=player_name):
             with gr.Row():
                 with gr.Column():
-                    with gr.Row():
-                        gr.Image(type='filepath', label="头像", value=get_character_avatar(player_name), height=300)
+                    gr.Image(type='filepath', label="头像", value=get_character_avatar(player_name), height=300)
                     ability_and_skill_for_pl = gr.Dataframe(headers=["属性/技能", "数值"],
-                                                            value=get_selectable_character_ability_and_skill(player_name))
+                                                            value=get_selectable_character_ability_and_skill(
+                                                                player_name))
 
                 with gr.Column():
                     output_for_pl = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_pl, every=1)
@@ -126,8 +136,10 @@ with gr.Blocks() as app:
                         pl_submit_btn = gr.Button("提交", min_width=1, scale=1)
 
 
-                        @pl_submit_btn.click(inputs=[player_name_box, player_act_box, player_say_box])
+                        @pl_submit_btn.click(inputs=[player_name_box, player_act_box, player_say_box],
+                                             outputs=[player_act_box, player_say_box])
                         def pl_submit(name, act, say):
+                            gr.Info("已接受输入，由于生成需要时间，请静候...")
                             if act.strip() == "" and say.strip() == "":
                                 return
                             rp = ""
@@ -136,10 +148,10 @@ with gr.Blocks() as app:
                             if say.strip() != "":
                                 rp += f"“{say}”"
                             scene_manager.player_role_play(name, rp)
-                            player_act_box.value = ""
-                            player_say_box.value = ""
+                            return ["", ""]
 
-    with gr.Tab(label="kp"):
+    with gr.Tab(label="Keeper"):
+
         with gr.Row():
             with gr.Row():
                 with gr.Column():
@@ -147,8 +159,7 @@ with gr.Blocks() as app:
                         dropdown_select_npc = gr.Dropdown(choices=selectable_non_player_names(), label="人物",
                                                           min_width=1, scale=15)
 
-                    with gr.Row():
-                        npc_avatar = gr.Image(type='filepath', label="头像", height=300)
+                    npc_avatar = gr.Image(type='filepath', label="头像", height=300)
                     ability_and_skill_for_npc = gr.Dataframe(headers=["属性/技能", "数值"])
 
 
@@ -173,13 +184,22 @@ with gr.Blocks() as app:
                 with gr.Row():
                     kp_say_box = gr.Textbox(label="KP叙述", scale=15)
                     kp_submit_btn = gr.Button("提交叙述", min_width=1, scale=1)
+                with gr.Row():
+                    kp_save_btn = gr.Button("存档", min_width=1, scale=1)
+                    kp_reset_btn = gr.Button("删档", min_width=1, scale=1)
 
 
                 @dropdown_scene.change(inputs=[dropdown_scene])
                 def on_dropdown_scene_change(scene_name):
-                    gr.Info(f"切换场景：{scene_name}")
-                    scene_manager.enter_scene(scene_name)
+                    if scene_name:
+                        gr.Info(f"切换场景：{scene_name}")
+                        scene_manager.enter_scene(scene_name)
 
+
+                @kp_submit_btn.click(inputs=[], outputs=[kp_say_box])
+                def clear_kp_say_box():
+                    gr.Info("已接受输入，由于生成需要时间，请静候...")
+                    return ""
                 @kp_submit_btn.click(inputs=[kp_say_box])
                 def kp_submit(kp_say):
                     kp_say_box.value = ""
@@ -195,7 +215,25 @@ with gr.Blocks() as app:
                     except Exception as e:
                         logger.exception(e)
                         logger.error(f"尝试执行以下python代码失败：{python_code}")
-    with gr.Tab(label="img"):
+
+
+                @kp_save_btn.click()
+                def on_save_btn_click():
+                    gr.Info("执行存档，为场景生成场景记忆，为角色生成角色记忆...")
+                    scene_manager.save()
+                    gr.Info("存档完成。")
+
+
+                @kp_reset_btn.click(outputs=[dropdown_scene])
+                def on_reset_btn_click():
+                    gr.Info("执行删档。所有角色的记忆都将被重置到初始状态。")
+                    global scene_manager
+                    scene_manager.reset()
+                    scene_manager = SceneManager(config_root_path=config_root_path)
+                    gr.Info("删档完成。")
+                    return ""
+
+    with gr.Tab(label="即时插图"):
         gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
 
 app.launch()

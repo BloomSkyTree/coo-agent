@@ -70,6 +70,9 @@ class BaseCharacter:
     def add_memory(self, memory):
         self._memory.append(memory)
 
+    def get_memory(self):
+        return self._memory
+
     def get_ability_and_skill(self):
         ability_and_skill_dict = {}
         for name in self._ability:

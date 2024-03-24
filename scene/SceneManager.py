@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 from http import HTTPStatus
 from pathlib import PurePosixPath
 from typing import Union, List
@@ -171,7 +172,7 @@ class SceneManager:
         self._current_scene.add_listener(self._script_listener_agent)
         logger.info(f"切换为场景：{scene_name}")
 
-    def draw_a_panorama(self):
+    def draw_a_panorama(self, *args, **kwargs):
         message = self._panorama_agent(self._current_scene.get_panorama_prompt())
         self._script_listener_agent.observe(message)
 
@@ -353,3 +354,11 @@ class SceneManager:
 
     def get_all_check_info(self):
         return self._all_check_info
+
+    def reset(self):
+        if os.path.exists(self._config_root_path):
+            shutil.rmtree(self._config_root_path)
+            # 复制resources文件夹的内容到self._config_root_path
+            resources_path = os.path.join(os.getcwd(), 'resources')
+            shutil.copytree(resources_path, self._config_root_path)
+
