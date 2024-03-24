@@ -155,6 +155,7 @@ with gr.Blocks(theme=gr.themes.Base()) as demo:
 
                 with gr.Row():
                     with gr.Column(scale=15):
+                        player_name_box = gr.Textbox(label="角色名称")
                         player_act_box = gr.Textbox(label="行动")
                         player_say_box = gr.Textbox(label="发言")
                     pl_submit_btn = gr.Button("提交",min_width=1,scale=1)
