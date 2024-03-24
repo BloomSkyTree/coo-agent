@@ -71,8 +71,6 @@ with gr.Blocks(theme=gr.themes.Base()) as demo:
                         changeNpc_btn = gr.Button("切换", min_width=1, scale=1)
 
 
-                    @changeNpc_btn.click(inputs="dropdown标签名")
-                    def "读取npc数据并刷新"
 
                     with gr.Row():
                         gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
@@ -129,7 +127,7 @@ with gr.Blocks(theme=gr.themes.Base()) as demo:
             with gr.Column():
                 with gr.Row():
                     gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
-                    with gr.Column(:
+                    with gr.Column():
                         with gr.Row():
                             str2 = gr.Textbox(label="力量", interactive=False, min_width=10)
                             con2 = gr.Textbox(label="体质", interactive=False, min_width=10)
@@ -147,17 +145,12 @@ with gr.Blocks(theme=gr.themes.Base()) as demo:
                             mp2 = gr.Textbox(label="mp", interactive=False, min_width=10)
                             san2 = gr.Textbox(label="san", interactive=False, min_width=10)
                 skill2 = gr.Dataframe(col_count=(2, "fixed"), headers=["技能", "数值"])
-                with gr.Row():
-                    createPl_btn = gr.Button("生成人物")
-                    confirmCreate_btn = gr.Button("确认")
 
-                    createPl_btn.click(fn=create)
-                    confirmCreate_btn.click =
 
 
             with gr.Column():
-                output_for_pl = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value="script_for_pl", every=1)
-                pl_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value="pl_check_info", every=1)
+                output_for_pl = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_pl, every=1)
+                pl_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value=pl_check_info, every=1)
 
 
                 with gr.Row():
