@@ -37,7 +37,7 @@ class SceneManager:
     _current_illustration_path: Union[str, None]
 
     _player_check_info: List[str]
-    _npc_check_info: List[str]
+    _all_check_info: List[str]
 
     def __init__(self, config_root_path):
         self._config_root_path = config_root_path
@@ -158,7 +158,7 @@ class SceneManager:
         self._current_scene = None
         self._current_illustration_path = None
         self._player_check_info = []
-        self._npc_check_info = []
+        self._all_check_info = []
 
     def enter_scene(self, scene_name):
         if self._current_scene is not None:
@@ -290,8 +290,7 @@ class SceneManager:
         logger.info(check_info)
         if isinstance(character, PlayerCharacter):
             self._player_check_info.append(check_info)
-        else:
-            self._npc_check_info.append(check_info)
+        self._all_check_info.append(check_info)
         return check_info
 
     def judge_check(self, character, act):
@@ -352,5 +351,5 @@ class SceneManager:
     def get_player_check_info(self):
         return self._player_check_info
 
-    def get_npc_check_info(self):
-        return self._npc_check_info
+    def get_all_check_info(self):
+        return self._all_check_info

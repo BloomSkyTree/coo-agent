@@ -38,12 +38,17 @@ def script_for_kp():
         message["content"] = re.sub(r"\n+", "\n", content)
     return "\n\n".join([f"{m['name']}\n{m['content']}" for m in script])
 
+
 def pl_check_info():
     return "\n".join(scene_manager.get_player_check_info())
+
+
 def npc_check_info():
     return "\n".join(scene_manager.get_npc_check_info())
 
+
 with gr.Blocks() as app:
+    dropdown = gr.Dropdown(choices=["Keeper", "Player"], label="选择游玩身份")
     with gr.Row():
         with gr.Column():
             player_name_box = gr.Textbox(label="角色名称")
@@ -53,6 +58,7 @@ with gr.Blocks() as app:
         with gr.Column():
             output_for_pl = gr.Textbox(label="剧本历史", lines=10, autoscroll=True, value=script_for_pl, every=1)
             pl_check_box = gr.Textbox(label="检定记录", lines=2, autoscroll=True, value=pl_check_info, every=1)
+
 
     @pl_submit_btn.click(inputs=[player_name_box, player_act_box, player_say_box])
     def pl_submit(name, act, say):
@@ -95,6 +101,5 @@ with gr.Blocks() as app:
 
 
     gr.Image(type='filepath', label="插图", value=scene_manager.get_illustration_path, every=1)
-
 
 app.launch()
