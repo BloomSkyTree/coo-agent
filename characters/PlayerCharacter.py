@@ -1,21 +1,19 @@
-from typing import Dict
+
 
 import yaml
-from agentscope.agents import UserAgent
 
 from characters.BaseCharacter import BaseCharacter
+from utils.llm.BaseLlm import BaseLlm
 
 
 class PlayerCharacter(BaseCharacter):
-    _agent: UserAgent
+    _agent: BaseLlm
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self._agent = UserAgent()
-
     def __call__(self, *args, **kwargs):
-        self._agent(*args, **kwargs)
+        raise Exception("不能对PlayerCharacter进行调用。")
 
     def get_agent(self):
         return self._agent

@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import shutil
@@ -9,14 +10,9 @@ from urllib.parse import unquote, urlparse
 import requests
 from dashscope import ImageSynthesis
 
-os.environ["DASHSCOPE_API_KEY"] = "sk-d1c122e76c8a4d11b78b3734e48960c6"
-
-from agentscope import msghub
-from agentscope.memory import TemporaryMemory
+from utils.json_utils import extract_jsons
 from agentscope.message import Msg
-from agentscope.msghub import MsgHubManager
 from loguru import logger
-
 from agents.KeeperControlledAgent import KeeperControlledAgent
 from characters.NonPlayerCharacter import NonPlayerCharacter
 from characters.PlayerCharacter import PlayerCharacter
@@ -31,7 +27,8 @@ class SceneManager:
     _character_outlook_agent: KeeperControlledAgent
     _script_listener_agent: KeeperControlledAgent
     _scene_manager_agent: KeeperControlledAgent
-    _check_agent: KeeperControlledAgent
+    _if_check_agent: KeeperControlledAgent
+    _check_detail_agent: KeeperControlledAgent
     _stable_diffusion_agent: KeeperControlledAgent
     _character_memory_agent: KeeperControlledAgent
 
@@ -57,18 +54,19 @@ class SceneManager:
                        "决定调用时需要传入的参数（字符串），直接给出需要执行的python代码。除非命令中使用英文，否则参数字符串取值一般是中文。\n"
                        "根据情况不同，若同时满足上述的多种场合，需要进行多个方法调用。调用时，顺序与说明时的顺序一致，由上到下。"
                        "注意：你只能回答能直接由eval()执行的python代码，不能回答其他多余的内容。",
-            model_config_name="qwen-max",
+            model_config_name="qwen-local",
             use_memory=True
         )
 
         self._panorama_agent = KeeperControlledAgent(
             name="场景描述",
-            sys_prompt="你是一个画面描述助手。根据提供的场景信息和额外提示词，你需要为其生成洛夫·克拉夫特风格的"
+            sys_prompt="你是一个场景描述助手。根据提供的场景信息和额外提示词，你需要为其生成洛夫·克拉夫特风格的"
                        "画面描述。但是，别提到洛夫·克拉夫特。"
                        "注意，你描述的信息、登场人物不应超出被提供的信息的范围；"
                        "你的描述应注重画面感,不需要说明年代和地点，不需要传递太多信息。"
-                       "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。",
-            model_config_name="qwen-max",
+                       "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。"
+                       "如果没有提及登场人物，则只描写景色。",
+            model_config_name="qwen-local",
             use_memory=True
         )
 
@@ -79,7 +77,7 @@ class SceneManager:
                        "你的描述应注重画面感,不需要说明年代和地点，不需要传递太多信息。"
                        "对登场人物的叙述仅限外表、动作、神态，不允许进行心理描写。"
                        "注意，Keeper相当于旁白，不是登场人物。",
-            model_config_name="qwen-max",
+            model_config_name="qwen-local",
             use_memory=True
         )
 
@@ -99,7 +97,7 @@ class SceneManager:
                        "reading,sing,showering,slashing,sleeping,smelling,smoking,"
                        "sneezing,yawning,hiding,walking,waking_up\n"
                        "回答时，标签使用英文逗号分隔，只允许回答标签，不需要回答其他内容。",
-            model_config_name="qwen-max",
+            model_config_name="qwen-local",
             use_memory=True
         )
 
@@ -109,41 +107,48 @@ class SceneManager:
                        "注意，你描述的信息不应超出被提供的信息的范围，且不允许进行心理描写。"
                        "除非明确要求，否则不允许有褒贬之意。尽量简短、白描。"
                        "以“有一位”开头，开始你的叙述。",
-            model_config_name="qwen-max",
+            model_config_name="qwen-local",
             use_memory=True
         )
 
         self._script_listener_agent = KeeperControlledAgent(
             name="script listener agent",
             sys_prompt="",
-            model_config_name="qwen-max",
+            model_config_name="qwen-local",
             use_memory=True
         )
 
-        self._check_agent = KeeperControlledAgent(
-            name="检定管理器",
-            sys_prompt="你是一个COC智能检定管理器。根据剧本内容，你需要判断某一角色是否需要进行检定，并进行不同的python代码执行。"
-                       "如果该角色没有进行什么特别的行动，或其目标从常理来说即使不依赖特定技能也能达成，则不需要检定，self.do_not_need_check(character_name: str)方法。\n"
-                       "如果该角色的目标从常理来无论如何都不可能达成，则不需要检定，self.impossible_check(character_name: str)方法。\n"
-                       "如果需要进行检定，则需要判断检定的困难级别（普通，困难，极难）。\n"
-                       "以下是困难级别相关的说明：\n"
-                       "普通：具有对应的技能或能力，在正常发挥的情况下能办到。\n"
-                       "困难：即使具有对应的技能或能力，也因为自身状态或环境的恶劣，使得达成的难度更上一层楼。\n"
-                       "极难：对于常人来说，依赖本身技能或能力很难办到，需要超常发挥且运气极佳才能达成；又或者自身状态或环境极端恶劣，使得正常发挥几乎不可能。\n"
-                       "如果该角色需要检定，self.do_check(character_name: str, skill_or_ability_name:str, difficulty: str)方法。\n"
-                       "其中，skill_or_ability_name为需要进行检定的技能名称，可选值包括：侦查、图书馆使用、聆听、闪避、斗殴、潜行、说服、话术、魅惑、恐吓、偷窃、神秘学、克苏鲁神话。\n"
+        self._if_check_agent = KeeperControlledAgent(
+            name="检定判断器",
+            sys_prompt="你是一个检定判断器。根据剧本内容，你需要判断某一角色当前的行为是否需要进行检定，并以JSON格式回答。\n"
+                       "如果该角色没有进行什么特别的行动，或其目标从常理来说即使不依赖特定技能也能达成，则不需要检定，返回：{\"need_check\": false, \"possible\":true}\n"
+                       "如果该角色的目标从常理来无论如何都不可能达成，则不需要检定，回答：返回：{\"need_check\": false, \"possible\":false}\n"
+                       "如果该角色的目标视其自身能力或技能而言可能成功也可能失败，则回答：返回：{\"need_check\": true, \"possible\":true}",
+            model_config_name="qwen-local",
+            use_memory=False
+        )
+
+        self._check_detail_agent = KeeperControlledAgent(
+            name="检定级别判断器",
+            sys_prompt="你是一个检定判断器。根据剧本内容，你需要判断某一角色当前的行为需要进行何种检定，并以JSON格式回答。\n"
+                       "你的回答必须包含以下两个字段：\n"
+                       "skill_or_ability_name：需要进行检定的技能或能力的名称，类型为字符串，可选值包括：侦查、图书馆使用、聆听、闪避、斗殴、潜行、说服、话术、魅惑、恐吓、偷窃、神秘学、克苏鲁神话。\n"
+                       "difficulty：角色行为成功难易度，类型为字符串，可选值包括：普通、困难、极难。\n"
                        "为了防止误解，以下是一些有歧义的技能的定义：\n"
                        "侦查：这项技能允许使用者发现被隐藏起来的东西或线索，觉察常人难以意识到的异象。\n"
                        "潜行：这项技能在使用者尝试主动地隐蔽自己的行迹、动静时适用。\n"
                        "聆听：这项技能在使用者尝试通过听力等非视觉感官获取情报时适用。\n"
                        "话术：话术特别限定于言语上的哄骗，欺骗以及误导。\n"
-                       "魅惑：魅惑允许通过许多形式来使用，包括肉体魅力、诱惑、奉承或是单纯令人感到温暖的人格魅力。魅惑可能可以被用于迫使某人进行特定的行动，但是不会是与个人日常举止完全相反的行为。"
-                       "神秘学：这项技能反应了对神秘学知识的了解。"
+                       "魅惑：魅惑允许通过许多形式来使用，包括肉体魅力、诱惑、奉承或是单纯令人感到温暖的人格魅力。魅惑可能可以被用于迫使某人进行特定的行动，但是不会是与个人日常举止完全相反的行为。\n"
+                       "神秘学：这项技能反应了对神秘学知识的了解。\n"
                        "克苏鲁神话：这项技能反应了对非人类（洛夫克拉夫特的）克苏鲁神话的了解。\n"
-                       "决定调用时需要传入的参数（字符串），直接给出需要执行的python代码。除非命令中使用英文，否则参数字符串取值一般是中文。\n"
-                       "注意：你只能回答能直接由eval()执行的python代码，不能回答其他多余的内容。",
-            model_config_name="qwen-max",
-            use_memory=True
+                       "以下是困难级别相关的说明：\n"
+                       "普通：具有对应的技能或能力，在正常发挥的情况下能办到。\n"
+                       "困难：即使具有对应的技能或能力，也因为自身状态或环境的恶劣，使得达成的难度更上一层楼。\n"
+                       "极难：对于常人来说，依赖本身技能或能力很难办到，需要超常发挥且运气极佳才能达成；又或者自身状态或环境极端恶劣，使得正常发挥几乎不可能。\n"
+                       "例如，一个人在尝试讨好另一个人，取得另一个人的好印象，需要进行普通级别的魅惑检定，你应返回：{\"skill_or_ability_name\":\"魅惑\", \"difficulty\":\"普通\"}",
+            model_config_name="qwen-local",
+            use_memory=False
         )
 
         self._character_memory_agent = KeeperControlledAgent(
@@ -153,7 +158,7 @@ class SceneManager:
                        "注意：剧本中的Keeper是旁白的别称，不要将其当做登场人物。"
                        "回答时，以第三人称视角和描述过去的口吻进行。只输出回忆内容，不允许回答任何多余的内容。",
 
-            model_config_name="qwen-max",
+            model_config_name="qwen-local",
             use_memory=True
         )
         self._current_scene = None
@@ -173,7 +178,8 @@ class SceneManager:
         logger.info(f"切换为场景：{scene_name}")
 
     def draw_a_panorama(self, *args, **kwargs):
-        message = self._panorama_agent(self._current_scene.get_panorama_prompt())
+        message = Msg(name="panorama agent", content=self._current_scene.get_panorama_prompt())
+        message = self._panorama_agent(message)
         self._script_listener_agent.observe(message)
 
     def generate_scene_memory(self, memory):
@@ -213,8 +219,9 @@ class SceneManager:
         if character is None:
             logger.warning(f"无法找到名为{character_name}的玩家或非玩家角色。将不会描述其外貌。")
             return
+        message = Msg(name="outlook prompt", content=self._current_scene.get_character(character_name).get_outlook())
         outlook_message = self._character_outlook_agent(
-            self._current_scene.get_character(character_name).get_outlook()
+            message
         )
         self._script_listener_agent.observe(outlook_message)
 
@@ -296,19 +303,30 @@ class SceneManager:
 
     def judge_check(self, character, act):
         scene_description = self._current_scene.get_panorama_prompt()
-        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
-        prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n\n判断以下内容是否需要检定，并进行对应的函数调用：\n" \
-                 f"{character} 尝试进行以下言行：{act}"
-        python_code = self._check_agent(prompt)["content"]
+        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()]) if len(
+            self.get_script()) > 0 else "暂无"
+        prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n" \
+                 f"{character} 尝试进行以下言行：{act}\n" \
+                 f"根据以上信息，判断{character}是否需要进行检定，以JSON格式回答。"
+        prompt_message = Msg(name="check-judge agent", content=prompt)
+
         check_result = None
-        if "`" in python_code:
-            python_code = "\n".join([line for line in python_code.split("\n") if not line.startswith("`")])
         try:
-            check_result = eval(python_code)
+            if_check = extract_jsons(self._if_check_agent(prompt_message)["content"])[0]
+            if if_check["need_check"]:
+                prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n" \
+                         f"{character} 尝试进行以下言行：{act}\n" \
+                         f"根据以上信息，判断{character}是需要进行何种检定，检定为何种难度，以JSON格式回答。"
+                prompt_message = Msg(name="check-judge agent", content=prompt)
+                check = extract_jsons(self._check_detail_agent(prompt_message)["content"])[0]
+                return self.do_check(character, check["skill_or_ability_name"], check["difficulty"])
+            else:
+                if if_check["possible"]:
+                    return "不需要检定，直接成功。"
+                else:
+                    return "不可能成功。"
         except Exception as e:
             logger.exception(e)
-            logger.error(f"尝试执行以下python代码失败：{python_code}")
-        self._check_agent.memory.clear()
         return check_result
 
     def do_not_need_check(self, character_name: str):
@@ -319,7 +337,7 @@ class SceneManager:
 
     def __call__(self, x: Msg):
         self._script_listener_agent.observe(x)
-        return self._scene_manager_agent(x)
+        # return self._scene_manager_agent(x)
 
     def illustrate(self):
 
@@ -361,4 +379,3 @@ class SceneManager:
             # 复制resources文件夹的内容到self._config_root_path
             resources_path = os.path.join(os.getcwd(), 'resources')
             shutil.copytree(resources_path, self._config_root_path)
-

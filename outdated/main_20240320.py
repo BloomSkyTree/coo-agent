@@ -7,7 +7,7 @@ from scene.SceneManager import SceneManager
 
 if __name__ == '__main__':
     keeper_agent = UserAgent(name="KP")
-    scene_manager = SceneManager("files")
+    scene_manager = SceneManager("../files")
     while True:
         time.sleep(0.5)
         auth = input("发言者身份：")

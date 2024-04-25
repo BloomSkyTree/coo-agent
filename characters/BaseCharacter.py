@@ -3,9 +3,6 @@ from typing import List, Union, Dict
 
 import yaml
 
-from agents.KeeperControlledAgent import KeeperControlledAgent
-from items.BaseItem import BaseItem
-
 
 class BaseCharacter:
     _config_path: str

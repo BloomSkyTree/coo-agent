@@ -10,7 +10,7 @@ from loguru import logger
 
 from scene.SceneManager import SceneManager
 
-scene_manager = SceneManager("files")
+scene_manager = SceneManager("../files")
 
 
 def script_for_pl():

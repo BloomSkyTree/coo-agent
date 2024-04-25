@@ -1,15 +1,14 @@
-import os
-from collections import OrderedDict
+
 from typing import Dict, List
 
 import yaml
-from agentscope.message import Msg
-from agentscope.msghub import MsgHubManager, msghub
 from loguru import logger
 
 from characters.NonPlayerCharacter import NonPlayerCharacter
 from characters.PlayerCharacter import PlayerCharacter
 from items.BaseItem import BaseItem
+from utils.llm.BaseLlm import BaseLlm
+from utils.llm.LlmMessage import LlmMessage
 
 
 class Scene:
@@ -26,7 +25,8 @@ class Scene:
     _stable_diffusion_tags: List[str]
 
     _config_path: str
-    _message_hub: MsgHubManager
+    _existed_agent_name: List[str]
+    _message_hub: Dict[str, BaseLlm]
 
     def __init__(self, **kwargs):
         config = kwargs
@@ -45,7 +45,7 @@ class Scene:
         self._keeper_commands = config.get("keeper_commands", [])
         self._stable_diffusion_tags = config.get("stable_diffusion_tags", [])
 
-        self._message_hub = msghub(participants=[])
+        self._message_hub = {}
 
     def get_name(self):
         return self._name
@@ -58,11 +58,11 @@ class Scene:
 
     def add_non_player_character(self, character):
         self._non_player_characters[character.get_name()] = character
-        self._message_hub.add(character.get_agent())
+        self._message_hub[character.get_name()] = (character.get_agent())
 
     def remove_non_player_character(self, name):
-        character = self._non_player_characters[name]
-        self._message_hub.delete(character.get_agent())
+        # character = self._non_player_characters[name]
+        del self._message_hub[name]
         del self._non_player_characters[name]
 
     def add_interactive_object(self, obj):
@@ -125,23 +125,27 @@ class Scene:
         else:
             return None
 
+    def broadcast(self, message):
+        for agent in self._message_hub.values():
+            agent.add_memory(message)
+
     def get_character_list(self):
         return list(self._non_player_characters.values()) + list(self._players.values())
 
     def player_role_play(self, player_name: str, role_play: str):
         if player_name in self._players:
-            message = Msg(
-                name=player_name,
+            message = LlmMessage(
+                role=player_name,
                 content=f"{player_name}：{role_play}"
             )
-            self._message_hub.broadcast(message)
+            self.broadcast(message)
             return message
         else:
             logger.warning(f"未找到对应玩家：{player_name}，忽略此次消息。")
             return None
 
-    def add_listener(self, agent):
-        self._message_hub.add(agent)
+    def add_listener(self, name, agent):
+        self._message_hub[name] = agent
 
     def get_stable_diffusion_tags(self):
         return self._stable_diffusion_tags

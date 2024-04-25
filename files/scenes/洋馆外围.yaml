@@ -3,8 +3,7 @@ era: 未知
 position: 未知
 description: 冷原的荒野上孤零零地坐落着的洋馆的外围。由铁制的篱笆围起，荆棘和藤蔓遍布期间。庭院里长满了杂草。在这里，天气总是表现为阴郁的午后，风沉闷而阴湿。
 interactive_items: []
-memory:
-- 门缓缓洞开
+memory: []
 keeper_commands: []
 stable_diffusion_tags:
 - wide_shot

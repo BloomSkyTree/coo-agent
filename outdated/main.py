@@ -1,6 +1,7 @@
 import agentscope
 from agentscope.agents import UserAgent
-
+from agentscope.message import Msg
+from agentscope.prompt import PromptEngine
 from agents.KeeperControlledAgent import KeeperControlledAgent
 from characters.NonPlayerCharacter import NonPlayerCharacter
 from scene.Scene import Scene
@@ -17,24 +18,23 @@ model_configs = [
             "Authorization": "sk-d1c122e76c8a4d11b78b3734e48960c6"
         },
         "messages_key": "input"
+    },
+    {
+        "config_name": "qwen-4b-local",
+        "model_type": "post_api",
+        "model_name": "qwen-4b-local",
+        "api_url": "http://127.0.0.1:5000/api/generate",
+        "headers": {
+            "Content-Type": "application/json",
+        },
+        "messages_key": "messages"
     }
 ]
 agentscope.init(model_configs=model_configs)
 
 if __name__ == '__main__':
-    s = Scene("二十一世纪初", "上海市立图书馆",
-              "中央有天井，由于是周末，人不多")
 
-    npc = NonPlayerCharacter(
-        name="安理",
-        outlook="少女，黑长直，样貌一般，戴眼镜",
-        age="十七八岁",
-        tone="没干劲，语言礼貌但却简略，惜字如金，话音拖长",
-        personality="寡淡",
-        description="氛围阴郁，正推着很沉的推车，上面放满了书。倾向于只给出最简单的帮助，除非对对方有好感。",
-        model_config_name="qwen-max"
-    )
-    s.add_non_player_character(npc)
+    npc = NonPlayerCharacter(config_path="../files/characters/non_player_characters/爱丽丝.yaml")
 
     # panorama_agent = KeeperControlledAgent(
     #     name="scene agent",
@@ -51,13 +51,14 @@ if __name__ == '__main__':
     character_outlook_agent = KeeperControlledAgent(
         name="character outlook agent",
         sys_prompt="你是一个人物形象描述助手。根据提供的人物信息，对人物的外表、动作、神态进行描写。"
-                   "注意，你描述的信息应超出被提供的信息的范围，且不允许进行心理描写。"
+                   "注意，你描述的信息不应超出被提供的信息的范围，且不允许进行心理描写。"
                    "除非明确要求，否则不允许有褒贬之意。尽量简短、白描。"
                    "以“有一位”开头，开始你的叙述。",
-        model_config_name="qwen-max",
+        model_config_name="qwen-4b-local",
         use_memory=True
     )
-    character_outlook_agent(npc.get_outlook())
+    character_outlook_agent(Msg(name="character outlook agent", role="user", content=npc.get_outlook()))
+    print()
 
     # scene_memory_agent = KeeperControlledAgent(
     #     name="scene memory agent",
@@ -155,4 +156,3 @@ if __name__ == '__main__':
     router_result = command_router_agent("阿特拉斯向少女走去。")["content"]
     if "人物管理器" in router_result:
         npc_manager_agent("阿特拉斯向少女走去。")
-

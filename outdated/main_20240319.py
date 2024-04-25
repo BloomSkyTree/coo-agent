@@ -25,7 +25,7 @@ def test_chat_with_npc(npc):
         x = npc(x)
 
 if __name__ == '__main__':
-    npc_dict = load_non_player_characters("files")
+    npc_dict = load_non_player_characters("../files")
     alice = npc_dict["Alice"]
     character_outlook_agent(alice.get_outlook())
     test_chat_with_npc(alice)
