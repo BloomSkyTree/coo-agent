@@ -1,8 +1,9 @@
 import os
 import random
 import shutil
-from typing import Union, List
+from typing import Union, List, Dict
 
+from characters.BaseCharacter import BaseCharacter
 from utils.file_system_utils import find_files_matching_pattern
 from utils.json_utils import extract_jsons
 from loguru import logger
@@ -33,8 +34,12 @@ class GameManager:
     _player_check_info: List[str]
     _all_check_info: List[str]
 
+    _characters: Dict[str, BaseCharacter]
+
     def __init__(self, config_root_path):
         self._config_root_path = config_root_path
+
+        self._characters = {}
 
         self._panorama_agent = LlmFactory.get_llm_by_model_name(
             model_name="autodl-llama",
@@ -172,7 +177,7 @@ class GameManager:
         message = LlmMessage(name="user", content=self._current_scene.get_panorama_prompt())
         message = self._panorama_agent.chat(query=message, max_new_tokens=512)
         logger.info(f"场景描绘：{message.content}")
-        self._script_listener_agent.add_memory(message)
+        self._script_listener_agent.add_memory(LlmMessage(role="场景", content=message.content))
 
     def generate_scene_memory(self, memory):
         self._current_scene.add_memory(memory)
@@ -187,23 +192,20 @@ class GameManager:
         # self._current_scene.save(self._config_root_path)
 
     def get_character(self, character_name):
-        character = self._current_scene.get_character(character_name)
-        if character is None:
-            character = self.load_character(character_name)
-        return character
+        if character_name not in self._characters:
+            self._characters[character_name] = self.load_character(character_name)
+        return self._characters[character_name]
 
     def load_character(self, character_name):
         player_path = self._config_root_path + f"/characters/player_characters/{character_name}.yaml"
         npc_path = self._config_root_path + f"/characters/non_player_characters/{character_name}.yaml"
         if os.path.exists(player_path):
             character = PlayerCharacter(config_path=player_path)
-            self._current_scene.add_player(character)
-            logger.info(f"已加载玩家角色：{character_name}")
+            logger.info(f"加载玩家角色：{character_name}")
             return character
         elif os.path.exists(npc_path):
             character = NonPlayerCharacter(config_path=npc_path, llm_model_name="llama")
-            self._current_scene.add_non_player_character(character)
-            logger.info(f"已加载非玩家角色：{character_name}")
+            logger.info(f"加载非玩家角色：{character_name}")
             return character
         else:
             return None
@@ -217,10 +219,12 @@ class GameManager:
             query=LlmMessage(content=self._current_scene.get_character(character_name).get_outlook()),
             max_new_tokens=1024
         )
-        self._script_listener_agent.add_memory(outlook_message)
+        self._script_listener_agent.add_memory(LlmMessage(role="人物管理器", content=outlook_message.content))
 
     def character_act(self, character_name: str, act: str):
         character = self.get_character(character_name)
+        if self._current_scene is not None:
+            self._current_scene.add_non_player_character(character)
         if character is None:
             logger.warning(f"无法找到名为{character_name}的玩家或非玩家角色。当前行动：{act}将会被忽略。")
             return
@@ -236,13 +240,15 @@ class GameManager:
                 rp_message = self._current_scene.get_character(character_name)(
                     f"进行以下动作的角色扮演：{act}，且该动作的结果为：{check_result}\n注意，在扮演和描述时，不能直接说出成功与否。")
             if rp_message is not None:
-                self._script_listener_agent.add_memory(LlmMessage(role="system", content=rp_message))
+                self._script_listener_agent.add_memory(LlmMessage(role=character_name, content=rp_message.content))
 
     def player_role_play(self, player_name, role_play):
-        self.get_character(player_name)
+        character = self.get_character(player_name)
+        if self._current_scene is not None:
+            self._current_scene.add_player(character)
         rp_message = self._current_scene.player_role_play(player_name, role_play)
         if rp_message is not None:
-            self._script_listener_agent.add_memory(LlmMessage(role="旁白", content=rp_message))
+            # self._script_listener_agent.add_memory(LlmMessage(role=player_name, content=rp_message.content))
             self.judge_check(player_name, role_play)
 
     def get_script(self):
@@ -297,7 +303,7 @@ class GameManager:
 
     def judge_check(self, character, act):
         scene_description = self._current_scene.get_panorama_prompt()
-        script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()]) if len(
+        script = "\n".join([f"{m.role}：{m.content}" for m in self.get_script()]) if len(
             self.get_script()) > 0 else "暂无"
         prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n" \
                  f"{character} 尝试进行以下言行：{act}\n" \
@@ -373,3 +379,23 @@ class GameManager:
             # 复制resources文件夹的内容到self._config_root_path
             resources_path = os.path.join(os.getcwd(), 'resources')
             shutil.copytree(resources_path, self._config_root_path)
+
+    def get_selectable_player_characters(self):
+        return [s.strip().replace(".yaml", "")
+                for s in
+                find_files_matching_pattern(self._config_root_path + "/characters/player_characters", ".*yaml")]
+
+    def get_selectable_non_player_characters(self):
+        return [s.strip().replace(".yaml", "")
+                for s in
+                find_files_matching_pattern(self._config_root_path + "/characters/non_player_characters", ".*yaml")]
+
+    def get_selectable_character_ability_and_skill(self, character_name):
+        character = self.get_character(character_name)
+        if character is None:
+            return []
+        ability_and_skill = character.get_ability_and_skill()
+        dataframe = []
+        for key in ability_and_skill:
+            dataframe.append([key, ability_and_skill[key]])
+        return dataframe
