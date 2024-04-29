@@ -23,11 +23,12 @@ class GameManager:
     _illustration_agent: BaseLlm
     _character_outlook_agent: BaseLlm
     _script_listener_agent: BaseLlm
-    _scene_manager_agent: BaseLlm
+    _scene_memory_agent: BaseLlm
     _if_check_agent: BaseLlm
     _check_detail_agent: BaseLlm
     _stable_diffusion_agent: BaseLlm
     _character_memory_agent: BaseLlm
+
 
     _current_illustration_path: Union[str, None]
 
@@ -156,6 +157,21 @@ class GameManager:
             ]
         )
 
+        self._scene_memory_agent = LlmFactory.get_llm_by_model_name(
+            model_name="autodl-llama",
+            system_prompt=[
+                LlmMessage(
+                    role="system",
+                    content="你是一个场景效应代理。根据剧本内容，你需要用一句话总结：在剧本的最新事件发生时，有什么在场地中留下了持久的效应。\n"
+                            "效应不应涉及人物、角色，着重关注对环境造成的影响。\n"
+                            "例如，一杯水的翻倒，带来的效应有：地面被水浸湿了。\n"
+                            "例如，一个角色开枪击中另一个角色，带来的效应有：血溅得到处都是；一颗弹孔留在了受害者背后的墙上。\n"
+                            # "如果剧本的最新事件不会留下什么效应，则回答：无效应。\n"
+                            "如果存在多个效应，用分号间隔开。"
+                )
+            ]
+        )
+
         self._current_scene = None
         self._current_illustration_path = None
         self._player_check_info = []
@@ -179,8 +195,20 @@ class GameManager:
         logger.info(f"场景描绘：{message.content}")
         self._script_listener_agent.add_memory(LlmMessage(role="场景", content=message.content))
 
-    def generate_scene_memory(self, memory):
-        self._current_scene.add_memory(memory)
+    def generate_scene_memory(self, max_recall=1):
+        script_slice = self._script_listener_agent.get_memory()[-max_recall:]
+        script_slice_content = "剧本如下：\n"
+        for message in script_slice:
+            script_slice_content += f"{message.role}: {message.content}\n"
+        self._scene_memory_agent.clear_memory()
+        message = self._scene_memory_agent.chat(query=LlmMessage(content=script_slice_content), max_new_tokens=256)
+        logger.info(script_slice_content)
+        logger.info(f"{message.role}: {message.content}")
+        if "无效应" not in message.content:
+            logger.info(f"造成场地效应：{message.content}")
+            self._current_scene.add_memory(message.content)
+        else:
+            logger.info("本次旁白没有造成场地效应。")
 
     def save(self):
         logger.debug("触发存档。")
@@ -399,3 +427,7 @@ class GameManager:
         for key in ability_and_skill:
             dataframe.append([key, ability_and_skill[key]])
         return dataframe
+
+    def submit_aside(self, aside_content):
+        self._script_listener_agent.add_memory(LlmMessage(role="旁白", content=aside_content))
+        self.generate_scene_memory()

@@ -1,12 +1,8 @@
-import math
-import threading
 import time
 import uuid
-import numpy as np
 import pandas as pd
 import streamlit as st
 from loguru import logger
-from streamlit.runtime.scriptrunner import add_script_run_ctx
 from game import get_game
 from game.GameManager import GameManager
 from utils.file_system_utils import check_directory, copy_and_rename_directory, file_exists
@@ -16,7 +12,6 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
         st.session_state["game_id"] = str(uuid.uuid4())
     game_id = st.session_state["game_id"]
     game_resources_root_path = st.session_state["resources_root_path"] + "/" + st.session_state["game_id"]
-    game_sync_cache_path = st.session_state["resources_root_path"] + "/" + st.session_state["game_id"] + "/cache"
     st.session_state["game_resources_root_path"] = game_resources_root_path
     if not check_directory(st.session_state["resources_root_path"], st.session_state["game_id"]):
         initial_resources_root_path = st.session_state["initial_resources_root_path"]
@@ -69,25 +64,34 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
     with main_row[1]:
         st.session_state["kp_messages"] = []
         story_container_placeholder = st.empty()
-        with st.container(border=True):
-            # npc_select_column, npc_command_column = st.columns([2, 8])
-            # with npc_select_column:
-            current_npc = st.selectbox(
-                "NPC",
-                game_manager.get_selectable_non_player_characters(),
-                index=None,
-                placeholder="选择NPC",
-                label_visibility="collapsed",
-                key="current_npc"
-            )
-            # with npc_command_column:
-            with st.form("Role Play", clear_on_submit=True, border=False):
-                rp_command = st.text_input("角色扮演命令",
-                                           placeholder="角色扮演命令",
-                                           label_visibility="collapsed")
-                if st.form_submit_button("进行角色扮演", use_container_width=True):
-                    if rp_command and "current_npc" in st.session_state and st.session_state["current_npc"]:
-                        game_manager.character_act(st.session_state["current_npc"], rp_command)
+        story_container_placeholder.container(border=True, height=360)
+        npc_rp_column, aside_column = st.columns([1, 1])
+        with npc_rp_column:
+            with st.container(border=True):
+                current_npc = st.selectbox(
+                    "NPC",
+                    game_manager.get_selectable_non_player_characters(),
+                    index=None,
+                    placeholder="选择NPC",
+                    label_visibility="collapsed",
+                    key="current_npc"
+                )
+                with st.form("角色扮演", clear_on_submit=True, border=False):
+                    rp_command = st.text_input("角色扮演命令",
+                                               placeholder="角色扮演命令",
+                                               label_visibility="collapsed")
+                    if st.form_submit_button("进行角色扮演", use_container_width=True):
+                        if rp_command and "current_npc" in st.session_state and st.session_state["current_npc"]:
+                            game_manager.character_act(st.session_state["current_npc"], rp_command)
+        with aside_column:
+            with st.container(border=True):
+                with st.form("旁白", clear_on_submit=True, border=False):
+                    aside_content = st.text_input("旁白",
+                                                  placeholder="旁白",
+                                                  label_visibility="collapsed")
+                    if st.form_submit_button("发送旁白", use_container_width=True):
+                        logger.info(f"发送旁白：{aside_content}")
+                        game_manager.submit_aside(aside_content)
 
         if st.button("退出游戏", use_container_width=True):
             st.switch_page("streamlit_app.py")
@@ -97,7 +101,7 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                 st.text(f"Story: {st.session_state['game_id']}")
                 for message in st.session_state["game"].get_script():
                     if file_exists(game_resources_root_path + "/images", f"{message.role}.png"):
-                        st.chat_message(message.role, avatar=game_resources_root_path + f"/images/{message.role}.png")\
+                        st.chat_message(message.role, avatar=game_resources_root_path + f"/images/{message.role}.png") \
                             .write(message.content)
                     else:
                         st.chat_message(message.role).write(message.content)
