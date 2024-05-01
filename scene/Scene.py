@@ -6,7 +6,7 @@ from loguru import logger
 
 from characters.NonPlayerCharacter import NonPlayerCharacter
 from characters.PlayerCharacter import PlayerCharacter
-from items.BaseItem import BaseItem
+from outdated.items.BaseItem import BaseItem
 from utils.llm.BaseLlm import BaseLlm
 from utils.llm.LlmMessage import LlmMessage
 

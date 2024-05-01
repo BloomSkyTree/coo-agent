@@ -113,7 +113,7 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     if isinstance(st.session_state["avatar_image"], Image):
                         st.session_state["avatar_image"].save(game_resources_root_path + "/images/" +
                                                               st.session_state["current_character"] + ".png")
-                        st.info("保存成功。")
+                        st.toast("保存成功。")
             with character_info_column:
                 st.write(f"{st.session_state['current_character']}")
                 outlook = st.text_input("角色外貌描述",

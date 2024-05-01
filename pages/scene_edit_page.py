@@ -95,7 +95,7 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     if isinstance(st.session_state["scene_image"], Image):
                         st.session_state["scene_image"].save(game_resources_root_path + "/images/" +
                                                              st.session_state["current_scene"] + ".png")
-                        st.info("保存成功。")
+                        st.toast("保存成功。")
 
             with scene_info_column:
                 st.write(f"{st.session_state['current_scene']}")

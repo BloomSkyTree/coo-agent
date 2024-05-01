@@ -19,7 +19,7 @@ class NonPlayerCharacter(BaseCharacter):
         if self._config_path:
             with open(self._config_path, 'r', encoding="utf-8") as file:
                 config = yaml.load(file, Loader=yaml.FullLoader)
-        self._llm_model_name = config.get("llm_model_name")
+        self._llm_model_name = config.get("llm_model_name", "llama")
 
         self._agent = LlmFactory.get_llm_by_model_name(self._llm_model_name, self.generate_system_prompt())
 
@@ -90,8 +90,7 @@ class NonPlayerCharacter(BaseCharacter):
             "ability": self._ability,
             "skill": self._skill,
             "stable_diffusion_tags": self._stable_diffusion_tags,
-            "memory": self._memory,
-            "model_config_name": self._llm_model_name
+            "memory": self._memory
         }
 
     def save(self, config_root_path):

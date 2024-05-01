@@ -1,10 +1,12 @@
+import json
 import os
 import random
 import shutil
+import uuid
 from typing import Union, List, Dict
 
 from characters.BaseCharacter import BaseCharacter
-from utils.file_system_utils import find_files_matching_pattern
+from utils.file_system_utils import find_files_matching_pattern, file_exists
 from utils.json_utils import extract_jsons
 from loguru import logger
 from characters.NonPlayerCharacter import NonPlayerCharacter
@@ -13,6 +15,7 @@ from scene.Scene import Scene
 from utils.llm.BaseLlm import BaseLlm
 from utils.llm.LlmFactory import LlmFactory
 from utils.llm.LlmMessage import LlmMessage
+from utils.stable_diffusion_utils import draw
 
 
 class GameManager:
@@ -28,7 +31,6 @@ class GameManager:
     _check_detail_agent: BaseLlm
     _stable_diffusion_agent: BaseLlm
     _character_memory_agent: BaseLlm
-
 
     _current_illustration_path: Union[str, None]
 
@@ -107,6 +109,12 @@ class GameManager:
             model_name="autodl-llama"
         )
 
+        if file_exists(self._config_root_path, "story.json"):
+            with open(self._config_root_path + "/story.json", "r", encoding="utf-8") as story_json_file:
+                story = json.loads(story_json_file.read())
+                for message in story:
+                    self._script_listener_agent.add_memory(LlmMessage(parameters=message))
+
         self._if_check_agent = LlmFactory.get_llm_by_model_name(
             model_name="autodl-llama",
             system_prompt=[
@@ -166,7 +174,6 @@ class GameManager:
                             "效应不应涉及人物、角色，着重关注对环境造成的影响。\n"
                             "例如，一杯水的翻倒，带来的效应有：地面被水浸湿了。\n"
                             "例如，一个角色开枪击中另一个角色，带来的效应有：血溅得到处都是；一颗弹孔留在了受害者背后的墙上。\n"
-                            # "如果剧本的最新事件不会留下什么效应，则回答：无效应。\n"
                             "如果存在多个效应，用分号间隔开。"
                 )
             ]
@@ -194,6 +201,10 @@ class GameManager:
         message = self._panorama_agent.chat(query=message, max_new_tokens=512)
         logger.info(f"场景描绘：{message.content}")
         self._script_listener_agent.add_memory(LlmMessage(role="场景", content=message.content))
+        if file_exists(self._config_root_path + "/images", f"{self._current_scene.get_name()}.png"):
+            self._script_listener_agent.add_memory(
+                LlmMessage(role="场景", content=self._config_root_path + f"/images/{self._current_scene.get_name()}.png")
+            )
 
     def generate_scene_memory(self, max_recall=1):
         script_slice = self._script_listener_agent.get_memory()[-max_recall:]
@@ -212,14 +223,23 @@ class GameManager:
 
     def save(self):
         logger.debug("触发存档。")
-        # script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
-        # for character in self._current_scene.get_character_list():
-        #     query = LlmMessage(role="user", content=f"剧本如下：\n{script}\n请以{character.get_name()}的视角，生成回忆。")
-        #     memory = self._character_memory_agent.chat(query=query).content
-        #     character.add_memory(memory)
-        # self._current_scene.save(self._config_root_path)
+        script_memory = self.get_script().to_message_list()
+        with open(self._config_root_path + f"/story.json", "w", encoding="utf-8") as story_json_file:
+            story_json_file.write(json.dumps(script_memory, ensure_ascii=False))
+
+        script = "\n".join([f"{message.role}：{message.content}" for message in self.get_script()])
+        for character_name, character in self._characters.items():
+            logger.info(f"保存角色：{character_name}")
+            query = LlmMessage(role="user", content=f"剧本如下：\n{script}\n请以{character.get_name()}的视角，生成回忆。")
+            memory = self._character_memory_agent.chat(query=query).content
+            character.add_memory(memory)
+            character.save(self._config_root_path)
+        if self._current_scene is not None:
+            self._current_scene.save(self._config_root_path)
 
     def get_character(self, character_name):
+        if not character_name:
+            return None
         if character_name not in self._characters:
             self._characters[character_name] = self.load_character(character_name)
         return self._characters[character_name]
@@ -363,30 +383,23 @@ class GameManager:
     def impossible_check(self, character_name: str):
         logger.info(f"{character_name}的行动不可能达成，无需进行检定。")
 
-    # def illustrate(self):
-    #     script = "\n".join([f"{m['name']}：{m['content']}" for m in self.get_script()])
-    #     tags = [tag for tag in self._current_scene.get_stable_diffusion_tags()]
-    #     for character in self._current_scene.get_character_list():
-    #         character_tags = character.get_stable_diffusion_tags()
-    #         tags.extend(character_tags)
-    #         query = LlmMessage(role="user",
-    #                            content=f"剧本如下：\n{script}\n\n，为{character.get_name()}提供神态、表情和动作方面的标签。")
-    #         extended_tags = self._stable_diffusion_agent.chat(query=query).content.split(",")
-    #         tags.extend(extended_tags)
-    #     logger.info(f"使用以下tag进行文生图：{tags}")
-    #     rsp = ImageSynthesis.call(model=ImageSynthesis.Models.wanx_v1,
-    #                               prompt=",".join(tags),
-    #                               n=1,
-    #                               size='1024*1024')
-    #     if rsp.status_code == HTTPStatus.OK:
-    #         for result in rsp.output.results:
-    #             file_name = PurePosixPath(unquote(urlparse(result.url).path)).parts[-1]
-    #             with open(self._config_root_path + f"/images/{file_name}", 'wb+') as f:
-    #                 f.write(requests.get(result.url).content)
-    #             self._current_illustration_path = self._config_root_path + f"/images/{file_name}"
-    #     else:
-    #         logger.error('SDXL文生图失败, status_code: %s, code: %s, message: %s' %
-    #                      (rsp.status_code, rsp.code, rsp.message))
+    def illustrate(self):
+        if self._current_scene is not None:
+            script = "\n".join([f"{m.role}：{m.content}" for m in self.get_script()])
+            tags = [tag for tag in self._current_scene.get_stable_diffusion_tags()]
+            for character in self._current_scene.get_character_list():
+                character_tags = character.get_stable_diffusion_tags()
+                tags.extend(character_tags)
+                query = LlmMessage(role="user",
+                                   content=f"剧本如下：\n{script}\n\n，为{character.get_name()}提供神态、表情和动作方面的标签。")
+                extended_tags = self._stable_diffusion_agent.chat(query=query).content.split(",")
+                tags.extend(extended_tags)
+            logger.info(f"使用以下tag进行文生图：{tags}")
+            image = draw(",".join(tags))
+            image_name = uuid.uuid4()
+            image_path = self._config_root_path + f"/images/{image_name}.png"
+            image.save(image_path)
+            self._script_listener_agent.add_memory(LlmMessage(role="插图", content=image_path))
 
     def get_selectable_scenes(self):
         return [filename.replace(".yaml", "") for filename in
