@@ -1,5 +1,7 @@
 import re
 import uuid
+
+import pandas as pd
 import streamlit as st
 import yaml
 from PIL.Image import Image
@@ -8,6 +10,9 @@ from game import get_game
 from game.GameManager import GameManager
 from utils.file_system_utils import check_directory, copy_and_rename_directory, file_exists
 from utils.stable_diffusion_utils import draw
+
+ability_names = ["力量", "体质", "体型", "敏捷", "外貌", "智力", "意志", "教育", "幸运", "生命", "魔法", "理智", "理智上限"]
+skill_names = ["侦查", "图书馆使用", "聆听", "闪避", "斗殴", "潜行", "说服", "话术", "魅惑", "恐吓", "偷窃", "神秘学", "克苏鲁神话"]
 
 
 def load_character_info(character_info):
@@ -22,7 +27,7 @@ def load_character_info(character_info):
     st.session_state['current_character_description'] = character_info["description"] \
         if "description" in character_info else None
     st.session_state['current_character_memory'] = character_info["memory"] \
-        if "memory" in character_info else None
+        if "memory" in character_info and character_info["memory"] else None
     if st.session_state['current_character_memory']:
         st.session_state['current_character_memory'] = "\n".join(st.session_state['current_character_memory'])
     st.session_state['current_character_stable_diffusion_tags'] = character_info["stable_diffusion_tags"] \
@@ -31,7 +36,19 @@ def load_character_info(character_info):
         st.session_state['current_character_stable_diffusion_tags'] = \
             ", ".join(st.session_state['current_character_stable_diffusion_tags'])
     st.session_state['current_character_ability'] = character_info["ability"] if "ability" in character_info else {}
+    if len(st.session_state['current_character_ability']) < 1:
+        for ability_name in ability_names:
+            st.session_state['current_character_ability'][ability_name] = None
     st.session_state['current_character_skill'] = character_info["skill"] if "skill" in character_info else {}
+    if len(st.session_state['current_character_skill']) < 1:
+        for skill_name in skill_names:
+            st.session_state['current_character_skill'][skill_name] = None
+    df_data = []
+    for ability_name, skill_name in zip(ability_names, skill_names):
+        df_data.append([ability_name, st.session_state['current_character_ability'][ability_name],
+                        skill_name, st.session_state['current_character_skill'][skill_name]])
+    df = pd.DataFrame(df_data, columns=["ability", "ability_value", "skill", "skill_value"])
+    st.session_state["current_character_ability_and_skill"] = df
 
 
 if "authentication_status" in st.session_state and st.session_state["authentication_status"]:
@@ -141,7 +158,36 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     height=100,
                     value=st.session_state['current_character_stable_diffusion_tags']
                     if "current_character_stable_diffusion_tags" in st.session_state else None)
+                st.session_state["current_character_ability_and_skill"] = \
+                    st.data_editor(st.session_state["current_character_ability_and_skill"],
+                                   use_container_width=True,
+                                   hide_index=True,
+                                   column_config={
+                                       "ability": st.column_config.Column(
+                                           "能力",
+                                           required=True,
+                                       ),
+                                       "ability_value": st.column_config.Column(
+                                           "数值",
+                                           required=True,
+                                       ),
+                                       "skill": st.column_config.Column(
+                                           "技能",
+                                           required=True,
+                                       ),
+                                       "skill_value": st.column_config.Column(
+                                           "数值",
+                                           required=True,
+                                       ),
+                                   })
         if st.button("保存为玩家角色", use_container_width=True):
+            ability_dict = {}
+            skill_dict = {}
+            ability_and_skill = st.session_state["current_character_ability_and_skill"].to_dict(orient="records")
+            for line in ability_and_skill:
+                ability_dict[line["ability"]] = line["ability_value"]
+                skill_dict[line["skill"]] = line["skill_value"]
+
             with open(
                     f"{game_resources_root_path}/characters/player_characters/{st.session_state['current_character']}.yaml",
                     'w', encoding="utf-8") as character_yaml:
@@ -152,9 +198,18 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     "tone": tone,
                     "personality": personality,
                     "memory": memory.split("\n") if memory else [],
-                    "stable_diffusion_tags": re.split(r",\s+", stable_diffusion_tags) if stable_diffusion_tags else []
-                }, character_yaml, allow_unicode=False)
+                    "stable_diffusion_tags": re.split(r",\s+", stable_diffusion_tags) if stable_diffusion_tags else [],
+                    "ability": ability_dict,
+                    "skill": skill_dict
+                }, character_yaml, allow_unicode=True, sort_keys=False)
+            st.toast("保存成功。")
         if st.button("保存为非玩家角色", use_container_width=True):
+            ability_dict = {}
+            skill_dict = {}
+            ability_and_skill = st.session_state["current_character_ability_and_skill"].to_dict(orient="records")
+            for line in ability_and_skill:
+                ability_dict[line["ability"]] = line["ability_value"]
+                skill_dict[line["skill"]] = line["skill_value"]
             with open(
                     f"{game_resources_root_path}/characters/non_player_characters/{st.session_state['current_character']}.yaml",
                     'w', encoding="utf-8") as character_yaml:
@@ -165,8 +220,12 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     "tone": tone,
                     "personality": personality,
                     "memory": memory.split("\n") if memory else [],
-                    "stable_diffusion_tags": re.split(r",\s+", stable_diffusion_tags) if stable_diffusion_tags else []
-                }, character_yaml, allow_unicode=False)
+                    "stable_diffusion_tags": re.split(r",\s+", stable_diffusion_tags) if stable_diffusion_tags else [],
+                    "ability": ability_dict,
+                    "skill": skill_dict
+                }, character_yaml, allow_unicode=True, sort_keys=False)
+            st.toast("保存成功。")
+
         if st.button("返回路由页面", use_container_width=True):
             st.switch_page("streamlit_app.py")
         if "current_character" in st.session_state and st.session_state["current_character"] \

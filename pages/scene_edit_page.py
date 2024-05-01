@@ -127,7 +127,7 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                         "memory": memory.split("\n") if memory else [],
                         "stable_diffusion_tags": re.split(r",\s+",
                                                           stable_diffusion_tags) if stable_diffusion_tags else []
-                    }, scene_yaml, allow_unicode=False)
+                    }, scene_yaml, allow_unicode=True, sort_keys=False)
         if st.button("返回路由页面", use_container_width=True):
             st.switch_page("streamlit_app.py")
         if "current_scene" in st.session_state and st.session_state["current_scene"] != "创建新场景":
