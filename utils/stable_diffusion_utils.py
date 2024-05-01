@@ -4,17 +4,17 @@ import io
 import base64
 from PIL import Image, PngImagePlugin
 
-url = "http://127.0.0.1:7860"
-
-DEFAULT_NEGATIVE_PROMPT = "lowres,bad anatomy,bad hands,text,error,missing fingers,extra digit," \
-                          "fewer digits,cropped,worst quality,low quality,normal quality,jpeg artifacts," \
-                          "signature,watermark,username,blurry,artist name,multiple views"
+from configuration import PROJECT_GLOBAL_CONFIG
 
 
-def draw(prompt, negative_prompt=DEFAULT_NEGATIVE_PROMPT, steps=32, sampler_name="Euler A SGMUniform",
-                  width=1024, height=1024, restore_faces=True):
+def draw(prompt,
+         negative_prompt=PROJECT_GLOBAL_CONFIG["stable_diffusion"]["default_negative_prompt"],
+         steps=32,
+         sampler_name="Euler A SGMUniform",
+         width=1024, height=1024, restore_faces=True):
+    url = PROJECT_GLOBAL_CONFIG["stable_diffusion"]["url"]
     option_payload = {
-        "sd_model_checkpoint": "animagineXLV31_v31.safetensors [e3c47aedb0]",
+        "sd_model_checkpoint": PROJECT_GLOBAL_CONFIG["stable_diffusion"]["model_name"],
         "CLIP_stop_at_last_layers": 2
     }
     requests.post(url=f'{url}/sdapi/v1/options', json=option_payload)
@@ -43,6 +43,7 @@ def draw(prompt, negative_prompt=DEFAULT_NEGATIVE_PROMPT, steps=32, sampler_name
     png_info = PngImagePlugin.PngInfo()
     png_info.add_text("parameters", image_response.json().get("info"))
     return image
+
 
 if __name__ == '__main__':
     image = draw("1girl")

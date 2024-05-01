@@ -1,22 +1,8 @@
-log:
-  level: INFO
-  path: logs
-
-
-
-openai:
-  api_key: "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"
-dashscope:
-  api_key: "sk-260c6ae644f1455c893a9c6079e9a467"
-qianfan:
-  access_key: "ALTAKgmlmShxPwewFBVe8oJcIm"
-  secret_key: "342ea8de610e49b88f78dd868c52b27f"
-chatglm:
-  url: "http://region-9.autodl.pro:48034/v1/"
 autodl_llama:
   model_name: "llama3"
-  url: "http://region-9.autodl.pro:34952/v1/"
-llama_chinese:
-  model_name: "llama3"
-  url: "http://region-9.autodl.pro:48034/v1/"
+  url: "http://localhost:80/v1/"
 
+stable_diffusion:
+  url: "http://127.0.0.1:7860"
+  default_negative_prompt: "lowres,bad anatomy,bad hands,text,error,missing fingers,extra digit,fewer digits,cropped,worst quality,low quality,normal quality,jpeg artifacts,signature,watermark,username,blurry,artist name,multiple views"
+  model_name: "animagineXLV31_v31.safetensors [e3c47aedb0]"
