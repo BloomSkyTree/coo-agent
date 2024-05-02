@@ -1,6 +1,6 @@
 autodl_llama:
   model_name: "llama3"
-  url: "http://region-9.autodl.pro:34952/v1/"
+  url: "http://localhost:80/v1/"
 
 stable_diffusion:
   url: "http://127.0.0.1:7860"
