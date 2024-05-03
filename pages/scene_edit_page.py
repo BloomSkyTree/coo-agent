@@ -7,7 +7,7 @@ from PIL.Image import Image
 from game import get_game
 from game.GameManager import GameManager
 from utils.file_system_utils import check_directory, copy_and_rename_directory, file_exists
-from utils.stable_diffusion_utils import draw
+from utils.stable_diffusion_utils import draw, generate_scene_tags
 
 
 def load_scene_info(scene_info):
@@ -20,7 +20,8 @@ def load_scene_info(scene_info):
     st.session_state["current_scene_stable_diffusion_tags"] = scene_info["stable_diffusion_tags"] \
         if "stable_diffusion_tags" in scene_info else []
     if isinstance(st.session_state["current_scene_stable_diffusion_tags"], list):
-        st.session_state["current_scene_stable_diffusion_tags"] = ", ".join(st.session_state["current_scene_stable_diffusion_tags"])
+        st.session_state["current_scene_stable_diffusion_tags"] = ", ".join(
+            st.session_state["current_scene_stable_diffusion_tags"])
 
 
 if "authentication_status" in st.session_state and st.session_state["authentication_status"]:
@@ -136,7 +137,12 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                 st.rerun()
             if generate_sd_tags_button_placeholder.button("根据已有描述信息生成 stable diffusion 正面TAG",
                                                           use_container_width=True):
-                pass
+                if not description:
+                    st.toast("必须至少填写了场景描述才能使用此功能")
+                else:
+                    st.session_state['current_scene_stable_diffusion_tags'] = ",".join(
+                        generate_scene_tags(description))
+                    st.rerun()
 
 else:
     st.text(f"您尚未登录，或登录信息已失效。请返回登录。")

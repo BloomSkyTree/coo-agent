@@ -9,7 +9,7 @@ from PIL.Image import Image
 from game import get_game
 from game.GameManager import GameManager
 from utils.file_system_utils import check_directory, copy_and_rename_directory, file_exists
-from utils.stable_diffusion_utils import draw
+from utils.stable_diffusion_utils import draw, generate_character_tags
 
 ability_names = ["力量", "体质", "体型", "敏捷", "外貌", "智力", "意志", "教育", "幸运", "生命", "魔法", "理智", "理智上限"]
 skill_names = ["侦查", "图书馆使用", "聆听", "闪避", "斗殴", "潜行", "说服", "话术", "魅惑", "恐吓", "偷窃", "神秘学", "克苏鲁神话"]
@@ -236,7 +236,11 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                 st.rerun()
             if generate_sd_tags_button_placeholder.button("根据已有描述信息生成 stable diffusion 正面TAG",
                                                           use_container_width=True):
-                pass
+                if not outlook:
+                    st.toast("必须至少填写了外貌描述才能使用此功能")
+                else:
+                    st.session_state['current_character_stable_diffusion_tags'] = ",".join(generate_character_tags(outlook))
+                    st.rerun()
 
 
 

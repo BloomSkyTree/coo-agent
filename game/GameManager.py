@@ -7,7 +7,7 @@ from typing import Union, List, Dict
 
 from characters.BaseCharacter import BaseCharacter
 from utils.file_system_utils import find_files_matching_pattern, file_exists
-from utils.json_utils import extract_jsons
+from utils.json_utils import extract_json
 from loguru import logger
 from characters.NonPlayerCharacter import NonPlayerCharacter
 from characters.PlayerCharacter import PlayerCharacter
@@ -136,14 +136,25 @@ class GameManager:
                             "你的回答必须包含以下两个字段：\n"
                             "skill_or_ability_name：需要进行检定的技能或能力的名称，类型为字符串，可选值包括：侦查、图书馆使用、聆听、闪避、斗殴、潜行、说服、话术、魅惑、恐吓、偷窃、神秘学、克苏鲁神话。\n"
                             "difficulty：角色行为成功难易度，类型为字符串，可选值包括：普通、困难、极难。\n"
-                            "为了防止误解，以下是一些有歧义的技能的定义：\n"
-                            "侦查：这项技能允许使用者发现被隐藏起来的东西或线索，觉察常人难以意识到的异象。\n"
-                            "潜行：这项技能在使用者尝试主动地隐蔽自己的行迹、动静时适用。\n"
-                            "聆听：这项技能在使用者尝试通过听力等非视觉感官获取情报时适用。\n"
-                            "话术：话术特别限定于言语上的哄骗，欺骗以及误导。\n"
-                            "魅惑：魅惑允许通过许多形式来使用，包括肉体魅力、诱惑、奉承或是单纯令人感到温暖的人格魅力。魅惑可能可以被用于迫使某人进行特定的行动，但是不会是与个人日常举止完全相反的行为。\n"
-                            "神秘学：这项技能反应了对神秘学知识的了解。\n"
-                            "克苏鲁神话：这项技能反应了对非人类（洛夫克拉夫特的）克苏鲁神话的了解。\n"
+                            "以下是技能或能力的适用场合：\n"
+                            "侦查：尝试发现被隐藏起来的东西或线索，觉察常人难以意识到的异象时适用。\n"
+                            "潜行：尝试主动地隐蔽自己的行迹、动静时使用。\n"
+                            "聆听：尝试通过听力等非视觉感官获取情报时适用。\n"
+                            "话术：尝试进行言语上的哄骗，欺骗以及误导时适用。\n"
+                            "魅惑：尝试以个人魅力博取对方好感时适用。\n"
+                            "神秘学：尝试运用神秘学知识时适用。\n"
+                            "图书馆使用：尝试在图书馆中查找资料时适用。\n"
+                            "闪避：尝试躲避攻击时适用。\n"
+                            "斗殴：徒手格斗时适用。\n"
+                            "说服：花费较长时间，尝试以理服人时适用。\n"
+                            "恐吓：口头威胁时适用。\n"
+                            "偷窃：偷窃东西时适用。\n"
+                            "克苏鲁神话：思考跟克苏鲁神话相关的内容时适用。\n"
+                            "力量：进行需要力气的活动时适用。\n"
+                            "体质：考验身体能否承受极端环境因素或者病毒、毒素时适用。\n"
+                            "敏捷：考验身体灵活、敏捷程度时适用。\n"
+                            "智力：在回想、思考时适用。\n"
+                            "教育：在考察仅有通过专门学校学习才能学会的知识时适用。\n"
                             "以下是困难级别相关的说明：\n"
                             "普通：具有对应的技能或能力，在正常发挥的情况下能办到。\n"
                             "困难：即使具有对应的技能或能力，也因为自身状态或环境的恶劣，使得达成的难度更上一层楼。\n"
@@ -287,6 +298,7 @@ class GameManager:
             else:
                 rp_message = self._current_scene.get_character(character_name)(
                     f"进行以下动作的角色扮演：{act}，且该动作的结果为：{check_result}\n注意，在扮演和描述时，不能直接说出成功与否。")
+                self._script_listener_agent.add_memory(LlmMessage(role="检定", content=check_result))
             if rp_message is not None:
                 self._script_listener_agent.add_memory(LlmMessage(role=character_name, content=rp_message.content))
 
@@ -357,16 +369,17 @@ class GameManager:
                  f"{character} 尝试进行以下言行：{act}\n" \
                  f"根据以上信息，判断{character}是否需要进行检定，以JSON格式回答。"
         prompt_message = LlmMessage(role="check-judge agent", content=prompt)
-
+        self._if_check_agent.clear_memory()
         check_result = None
         try:
-            if_check = extract_jsons(self._if_check_agent.chat(query=prompt_message).content)[0]
+            if_check = extract_json(self._if_check_agent.chat(query=prompt_message).content)
             if if_check["need_check"]:
                 prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n" \
                          f"{character} 尝试进行以下言行：{act}\n" \
                          f"根据以上信息，判断{character}是需要进行何种检定，检定为何种难度，以JSON格式回答。"
                 prompt_message = LlmMessage(role="check-judge agent", content=prompt)
-                check = extract_jsons(self._check_detail_agent.chat(query=prompt_message).content)[0]
+                self._check_detail_agent.clear_memory()
+                check = extract_json(self._check_detail_agent.chat(query=prompt_message).content)
                 return self.do_check(character, check["skill_or_ability_name"], check["difficulty"])
             else:
                 if if_check["possible"]:
