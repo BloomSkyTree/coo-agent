@@ -110,7 +110,7 @@ streamlit run .\streamlit_app.py
 ## TODOs
 · 完善用户系统
 
-· 完成根据场景/人物描述信息生成 Stable Diffusion 正面 Prompt 功能
+· 进一步改善Script Agent对记忆的管理功能，预计扩写为ScriptManager
 
 · 改善页面交互和用户体验
 
