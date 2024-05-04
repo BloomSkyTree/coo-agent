@@ -12,6 +12,7 @@ class BaseCharacter:
     _age: str
     _tone: str
     _description: str
+    _tts_name: Union[str, None]
 
     _ability: Dict[str, int]
     _stable_diffusion_tags: List[str]
@@ -35,6 +36,7 @@ class BaseCharacter:
         self._skill = config.get("skill")
 
         self._memory = config.get("memory", [])
+        self._tts_name = config.get("tts_name", None)
 
     def get_name(self):
         return self._name
@@ -77,3 +79,6 @@ class BaseCharacter:
         for name in self._skill:
             ability_and_skill_dict[name] = self._skill[name]
         return ability_and_skill_dict
+
+    def get_tts_name(self):
+        return self._tts_name

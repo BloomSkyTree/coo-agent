@@ -50,15 +50,15 @@ class Scene:
     def get_name(self):
         return self._name
 
-    def add_player(self, character: PlayerCharacter):
-        self._players[character.get_name()] = character
-
-    def remove_player(self, name):
-        del self._players[name]
-
-    def add_non_player_character(self, character):
-        self._non_player_characters[character.get_name()] = character
-        self._message_hub[character.get_name()] = (character.get_agent())
+    # def add_player(self, character: PlayerCharacter):
+    #     self._players[character.get_name()] = character
+    #
+    # def remove_player(self, name):
+    #     del self._players[name]
+    #
+    # def add_non_player_character(self, character):
+    #     self._non_player_characters[character.get_name()] = character
+    #     self._message_hub[character.get_name()] = (character.get_agent())
 
     def remove_non_player_character(self, name):
         # character = self._non_player_characters[name]
@@ -114,38 +114,38 @@ class Scene:
             self._config_path = config_root_path + f"/scenes/{self._name}.yaml"
         with open(self._config_path, "w", encoding="utf-8") as yaml_file:
             yaml.dump(content, yaml_file, allow_unicode=True, sort_keys=False)
-        for character in self.get_character_list():
-            character.save(config_root_path)
+        # for character in self.get_character_list():
+        #     character.save(config_root_path)
 
-    def get_character(self, character_name):
-        if character_name in self._non_player_characters:
-            return self._non_player_characters[character_name]
-        elif character_name in self._players:
-            return self._players[character_name]
-        else:
-            return None
+    # def get_character(self, character_name):
+    #     if character_name in self._non_player_characters:
+    #         return self._non_player_characters[character_name]
+    #     elif character_name in self._players:
+    #         return self._players[character_name]
+    #     else:
+    #         return None
 
-    def broadcast(self, message):
-        for agent in self._message_hub.values():
-            agent.add_memory(message)
+    # def broadcast(self, message):
+    #     for agent in self._message_hub.values():
+    #         agent.add_memory(message)
 
-    def get_character_list(self):
-        return list(self._non_player_characters.values()) + list(self._players.values())
-
-    def player_role_play(self, player_name: str, role_play: str):
-        if player_name in self._players:
-            message = LlmMessage(
-                role=player_name,
-                content=f"{player_name}：{role_play}"
-            )
-            self.broadcast(message)
-            return message
-        else:
-            logger.warning(f"未找到对应玩家：{player_name}，忽略此次消息。")
-            return None
-
-    def add_listener(self, name, agent):
-        self._message_hub[name] = agent
+    # def get_character_list(self):
+    #     return list(self._non_player_characters.values()) + list(self._players.values())
+    #
+    # def player_role_play(self, player_name: str, role_play: str):
+    #     if player_name in self._players:
+    #         message = LlmMessage(
+    #             role=player_name,
+    #             content=f"{player_name}：{role_play}"
+    #         )
+    #         self.broadcast(message)
+    #         return message
+    #     else:
+    #         logger.warning(f"未找到对应玩家：{player_name}，忽略此次消息。")
+    #         return None
+    #
+    # def add_listener(self, name, agent):
+    #     self._message_hub[name] = agent
 
     def get_stable_diffusion_tags(self):
         return self._stable_diffusion_tags

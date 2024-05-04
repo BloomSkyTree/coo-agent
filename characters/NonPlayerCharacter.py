@@ -2,7 +2,11 @@ from typing import List, Sequence, Union
 
 import yaml
 from typing import Type
+
+from loguru import logger
+
 from characters.BaseCharacter import BaseCharacter
+from game.StoryManager import StoryManager
 from utils.llm.BaseLlm import BaseLlm
 from utils.llm.LlmFactory import LlmFactory
 from utils.llm.LlmMessage import LlmMessage
@@ -14,6 +18,7 @@ class NonPlayerCharacter(BaseCharacter):
     _agent: BaseLlm
     _llm_model_name: str
 
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if self._config_path:
@@ -23,13 +28,16 @@ class NonPlayerCharacter(BaseCharacter):
 
         self._agent = LlmFactory.get_llm_by_model_name(self._llm_model_name, self.generate_system_prompt())
 
-    def __call__(self, message: Union[str, LlmMessage]):
-        if isinstance(message, LlmMessage):
-            return self._agent.chat(query=message, max_new_tokens=512)
-        elif isinstance(message, str):
-            message_msg = LlmMessage(role="npc role play agent", content=message)
-            return self._agent.chat(query=message_msg, max_new_tokens=512)
-        raise ValueError(f"未支持的消息类型：{type(message)}")
+    def __call__(self, story: StoryManager, rp_command: str):
+        self._agent.clear_memory()
+        story_content = story.get_current_story_as_text()
+        command = story_content + "\n\n" + rp_command
+        logger.info(f"{self.get_name()}角色扮演提示词：\n{command}")
+        response = self._agent.chat(query=LlmMessage(content=command), max_new_tokens=128)
+        logger.info(f"生成结果：{response}")
+        if response.content.startswith(self.get_name()):
+            return LlmMessage(role=self.get_name(), content=response.content[4:].strip().split("\n")[0])
+        return response
 
     def generate_system_prompt(self):
         character_prompt = f"""
@@ -61,23 +69,24 @@ class NonPlayerCharacter(BaseCharacter):
                             f"扮演时的格式如下：\n" \
                             f"自己的名字：（表情，神态，动作，描写）“说话的内容（如果不说话，则不需要此部分）”\n" \
                             f"例如：\n" \
-                            f"{self.get_name()}：（伸出手，仿佛在抚摸空气中看不见的什么东西）“这样……就可以了。”"
+                            f"{self.get_name()}：（伸出手，仿佛在抚摸空气中看不见的什么东西）“这样……就可以了。”\n" \
+                            f"对角色的一次扮演完成后便终止，不允许对故事进行续写。"
 
         return [LlmMessage(role="system", content=character_prompt)]
 
-    def generate_long_term_memory(self):
-        self._agent.sys_prompt = self.generate_system_prompt()
-        message = LlmMessage(content="根据到目前为止的交互，概括你关心的内容，简要说明你的看法、态度。"
-                                     "以回忆过去的口吻，说明当时的场景，叙述自己的印象。"
-                                     "如果没有你特别关心、觉得应该记住的事，如下回答："
-                                     "无大事发生。")
-        return self._agent.chat(query=message, max_new_tokens=1024)
+    # def generate_long_term_memory(self):
+    #     self._agent.sys_prompt = self.generate_system_prompt()
+    #     message = LlmMessage(content="根据到目前为止的交互，概括你关心的内容，简要说明你的看法、态度。"
+    #                                  "以回忆过去的口吻，说明当时的场景，叙述自己的印象。"
+    #                                  "如果没有你特别关心、觉得应该记住的事，如下回答："
+    #                                  "无大事发生。")
+    #     return self._agent.chat(query=message, max_new_tokens=1024)
 
-    def set_scene(self, scene):
-        self._belong_to_scene = scene
+    # def set_scene(self, scene):
+    #     self._belong_to_scene = scene
 
-    def get_agent(self):
-        return self._agent
+    # def get_agent(self):
+    #     return self._agent
 
     def serialize(self):
         return {

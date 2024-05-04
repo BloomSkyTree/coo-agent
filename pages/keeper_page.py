@@ -109,7 +109,7 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                 st.text(f"Story: {st.session_state['game_id']}")
                 for message in st.session_state["game"].get_script():
                     message_content = message.content
-                    if message_content.startswith(game_resources_root_path):
+                    if message_content.endswith("png"):
                         message_content = Image.open(message_content)
 
                     if file_exists(game_resources_root_path + "/images", f"{message.role}.png"):
@@ -118,7 +118,9 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     else:
                         chat_message = st.chat_message(message.role)
                     with chat_message:
-                        if isinstance(message_content, str):
+                        if isinstance(message_content, str) and message_content.endswith(".wav"):
+                            st.audio(message_content)
+                        elif isinstance(message_content, str):
                             st.write(message_content)
                         elif isinstance(message_content, Image.Image):
                             st.image(message_content, width=300)

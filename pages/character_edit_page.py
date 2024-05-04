@@ -10,6 +10,7 @@ from game import get_game
 from game.GameManager import GameManager
 from utils.file_system_utils import check_directory, copy_and_rename_directory, file_exists
 from utils.stable_diffusion_utils import draw, generate_character_tags
+from utils.voicevox_utils import get_speaker_names
 
 ability_names = ["力量", "体质", "体型", "敏捷", "外貌", "智力", "意志", "教育", "幸运", "生命", "魔法", "理智", "理智上限"]
 skill_names = ["侦查", "图书馆使用", "聆听", "闪避", "斗殴", "潜行", "说服", "话术", "魅惑", "恐吓", "偷窃", "神秘学", "克苏鲁神话"]
@@ -149,6 +150,10 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                 description = st.text_input("其他描述", placeholder="留空表示“暂无“",
                                             value=st.session_state['current_character_description']
                                             if "current_character_description" in st.session_state else None)
+                tts_name = st.selectbox("TTS配音角色",
+                                        options=get_speaker_names(),
+                                        index=None,
+                                        placeholder="选择一位voicevox配音角色")
                 memory = st.text_area("人物记忆",
                                       placeholder="留空表示“暂无“。建议不同的记忆以换行分隔。", height=150,
                                       value=st.session_state['current_character_memory']
@@ -197,6 +202,8 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     "age": age,
                     "tone": tone,
                     "personality": personality,
+                    "description": description,
+                    "tts_name": tts_name,
                     "memory": memory.split("\n") if memory else [],
                     "stable_diffusion_tags": re.split(r",\s+", stable_diffusion_tags) if stable_diffusion_tags else [],
                     "ability": ability_dict,
@@ -219,6 +226,8 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                     "age": age,
                     "tone": tone,
                     "personality": personality,
+                    "description": description,
+                    "tts_name": tts_name,
                     "memory": memory.split("\n") if memory else [],
                     "stable_diffusion_tags": re.split(r",\s+", stable_diffusion_tags) if stable_diffusion_tags else [],
                     "ability": ability_dict,

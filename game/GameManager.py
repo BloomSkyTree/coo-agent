@@ -1,11 +1,13 @@
 import json
 import os
 import random
+import re
 import shutil
 import uuid
 from typing import Union, List, Dict
 
 from characters.BaseCharacter import BaseCharacter
+from game.StoryManager import StoryManager
 from utils.file_system_utils import find_files_matching_pattern, file_exists
 from utils.json_utils import extract_json
 from loguru import logger
@@ -16,6 +18,7 @@ from utils.llm.BaseLlm import BaseLlm
 from utils.llm.LlmFactory import LlmFactory
 from utils.llm.LlmMessage import LlmMessage
 from utils.stable_diffusion_utils import draw
+from utils.voicevox_utils import to_japanese_tts_and_save
 
 
 class GameManager:
@@ -25,7 +28,7 @@ class GameManager:
     _panorama_agent: BaseLlm
     _illustration_agent: BaseLlm
     _character_outlook_agent: BaseLlm
-    _script_listener_agent: BaseLlm
+    # _script_listener_agent: BaseLlm
     _scene_memory_agent: BaseLlm
     _if_check_agent: BaseLlm
     _check_detail_agent: BaseLlm
@@ -38,6 +41,7 @@ class GameManager:
     _all_check_info: List[str]
 
     _characters: Dict[str, BaseCharacter]
+    _story_manager: StoryManager
 
     def __init__(self, config_root_path):
         self._config_root_path = config_root_path
@@ -105,15 +109,16 @@ class GameManager:
             ]
         )
 
-        self._script_listener_agent = LlmFactory.get_llm_by_model_name(
-            model_name="autodl-llama"
-        )
+        # self._script_listener_agent = LlmFactory.get_llm_by_model_name(
+        #     model_name="autodl-llama"
+        # )
+        self._story_manager = StoryManager(self._config_root_path + "/story.json")
 
-        if file_exists(self._config_root_path, "story.json"):
-            with open(self._config_root_path + "/story.json", "r", encoding="utf-8") as story_json_file:
-                story = json.loads(story_json_file.read())
-                for message in story:
-                    self._script_listener_agent.add_memory(LlmMessage(parameters=message))
+        # if file_exists(self._config_root_path, "story.json"):
+        #     with open(self._config_root_path + "/story.json", "r", encoding="utf-8") as story_json_file:
+        #         story = json.loads(story_json_file.read())
+        #         for message in story:
+        #             self._script_listener_agent.add_memory(LlmMessage(parameters=message))
 
         self._if_check_agent = LlmFactory.get_llm_by_model_name(
             model_name="autodl-llama",
@@ -203,7 +208,7 @@ class GameManager:
             self.save()
         scene_config_path = self._config_root_path + f"/scenes/{scene_name}.yaml"
         self._current_scene = Scene(config_path=scene_config_path)
-        self._current_scene.add_listener("剧本管理器", self._script_listener_agent)
+        # self._current_scene.add_listener("剧本管理器", self._script_listener_agent)
         logger.info(f"切换为场景：{scene_name}")
 
     def draw_a_panorama(self, *args, **kwargs):
@@ -211,14 +216,14 @@ class GameManager:
         message = LlmMessage(name="user", content=self._current_scene.get_panorama_prompt())
         message = self._panorama_agent.chat(query=message, max_new_tokens=512)
         logger.info(f"场景描绘：{message.content}")
-        self._script_listener_agent.add_memory(LlmMessage(role="场景", content=message.content))
+        self._story_manager.add(LlmMessage(role="场景", content=message.content))
         if file_exists(self._config_root_path + "/images", f"{self._current_scene.get_name()}.png"):
-            self._script_listener_agent.add_memory(
+            self._story_manager.add(
                 LlmMessage(role="场景", content=self._config_root_path + f"/images/{self._current_scene.get_name()}.png")
             )
 
     def generate_scene_memory(self, max_recall=1):
-        script_slice = self._script_listener_agent.get_memory()[-max_recall:]
+        script_slice = self._story_manager.get_current_story()[-max_recall:]
         script_slice_content = "剧本如下：\n"
         for message in script_slice:
             script_slice_content += f"{message.role}: {message.content}\n"
@@ -252,7 +257,10 @@ class GameManager:
         if not character_name:
             return None
         if character_name not in self._characters:
-            self._characters[character_name] = self.load_character(character_name)
+            character = self.load_character(character_name)
+            if character is None:
+                return None
+            self._characters[character_name] = character
         return self._characters[character_name]
 
     def load_character(self, character_name):
@@ -275,44 +283,36 @@ class GameManager:
             logger.warning(f"无法找到名为{character_name}的玩家或非玩家角色。将不会描述其外貌。")
             return
         outlook_message = self._character_outlook_agent.chat(
-            query=LlmMessage(content=self._current_scene.get_character(character_name).get_outlook()),
+            query=LlmMessage(content=self.get_character(character_name).get_outlook()),
             max_new_tokens=1024
         )
-        self._script_listener_agent.add_memory(LlmMessage(role="人物管理器", content=outlook_message.content))
+        self._story_manager.add(LlmMessage(role="人物管理器", content=outlook_message.content))
 
     def character_act(self, character_name: str, act: str):
         character = self.get_character(character_name)
-        if self._current_scene is not None:
-            self._current_scene.add_non_player_character(character)
         if character is None:
             logger.warning(f"无法找到名为{character_name}的玩家或非玩家角色。当前行动：{act}将会被忽略。")
             return
         check_result = self.judge_check(character_name, act)
-        if isinstance(character, PlayerCharacter):
-            # self._script_listener_agent.observe(Msg(name="旁白", content=f"{character_name}尝试进行行动：{act}"))
-            if check_result is not None:
-                logger.info(check_result)
-        else:
+        self._story_manager.add(LlmMessage(role="检定管理器", content=check_result))
+        if isinstance(character, NonPlayerCharacter):
             if check_result is None:
-                rp_message = self._current_scene.get_character(character_name)(f"进行以下动作的角色扮演：{act}")
+                rp_message = character(self._story_manager, f"进行以下动作的角色扮演：{act}")
             else:
-                rp_message = self._current_scene.get_character(character_name)(
+                rp_message = character(self._story_manager,
                     f"进行以下动作的角色扮演：{act}，且该动作的结果为：{check_result}\n注意，在扮演和描述时，不能直接说出成功与否。")
-                self._script_listener_agent.add_memory(LlmMessage(role="检定", content=check_result))
             if rp_message is not None:
-                self._script_listener_agent.add_memory(LlmMessage(role=character_name, content=rp_message.content))
+                self._story_manager.add(LlmMessage(role=character_name, content=rp_message.content))
+                if character.get_tts_name() is not None:
+                    self._add_tts(character.get_tts_name(), rp_message.content)
 
     def player_role_play(self, player_name, role_play):
-        character = self.get_character(player_name)
-        if self._current_scene is not None:
-            self._current_scene.add_player(character)
-        rp_message = self._current_scene.player_role_play(player_name, role_play)
-        if rp_message is not None:
-            # self._script_listener_agent.add_memory(LlmMessage(role=player_name, content=rp_message.content))
-            self.judge_check(player_name, role_play)
+        rp_message = LlmMessage(role=player_name, content=role_play)
+        self._story_manager.add(rp_message)
+        self.judge_check(player_name, role_play)
 
     def get_script(self):
-        memory = self._script_listener_agent.get_memory()
+        memory = self._story_manager.get_current_story()
         return memory
 
     def do_check(self, character_name: str, skill_or_ability_name: str, difficulty: str):
@@ -372,14 +372,14 @@ class GameManager:
         self._if_check_agent.clear_memory()
         check_result = None
         try:
-            if_check = extract_json(self._if_check_agent.chat(query=prompt_message).content)
+            if_check = extract_json(self._if_check_agent.chat(query=prompt_message, max_new_tokens=128).content)
             if if_check["need_check"]:
                 prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n" \
                          f"{character} 尝试进行以下言行：{act}\n" \
                          f"根据以上信息，判断{character}是需要进行何种检定，检定为何种难度，以JSON格式回答。"
                 prompt_message = LlmMessage(role="check-judge agent", content=prompt)
                 self._check_detail_agent.clear_memory()
-                check = extract_json(self._check_detail_agent.chat(query=prompt_message).content)
+                check = extract_json(self._check_detail_agent.chat(query=prompt_message, max_new_tokens=128).content)
                 return self.do_check(character, check["skill_or_ability_name"], check["difficulty"])
             else:
                 if if_check["possible"]:
@@ -398,21 +398,25 @@ class GameManager:
 
     def illustrate(self):
         if self._current_scene is not None:
-            script = "\n".join([f"{m.role}：{m.content}" for m in self.get_script()])
+
+
             tags = [tag for tag in self._current_scene.get_stable_diffusion_tags()]
-            for character in self._current_scene.get_character_list():
-                character_tags = character.get_stable_diffusion_tags()
-                tags.extend(character_tags)
-                query = LlmMessage(role="user",
-                                   content=f"剧本如下：\n{script}\n\n，为{character.get_name()}提供神态、表情和动作方面的标签。")
-                extended_tags = self._stable_diffusion_agent.chat(query=query).content.split(",")
-                tags.extend(extended_tags)
+            for message in self._story_manager.get_current_story():
+                if message.role in self._characters:
+                    character = self.get_character(message.role)
+                    character_tags = character.get_stable_diffusion_tags()
+                    tags.extend(character_tags)
+                    query = LlmMessage(role="user",
+                                       content=f"剧本如下：\n{self._story_manager.get_current_story_as_text()}\n\n，"
+                                               f"为{character.get_name()}提供神态、表情和动作方面的标签。")
+                    extended_tags = self._stable_diffusion_agent.chat(query=query).content.split(",")
+                    tags.extend(extended_tags)
             logger.info(f"使用以下tag进行文生图：{tags}")
             image = draw(",".join(tags))
             image_name = uuid.uuid4()
             image_path = self._config_root_path + f"/images/{image_name}.png"
             image.save(image_path)
-            self._script_listener_agent.add_memory(LlmMessage(role="插图", content=image_path))
+            self._story_manager.add(LlmMessage(role="插图", content=image_path))
 
     def get_selectable_scenes(self):
         return [filename.replace(".yaml", "") for filename in
@@ -455,5 +459,14 @@ class GameManager:
         return dataframe
 
     def submit_aside(self, aside_content):
-        self._script_listener_agent.add_memory(LlmMessage(role="旁白", content=aside_content))
+        self._story_manager.add(LlmMessage(role="旁白", content=aside_content))
         self.generate_scene_memory()
+
+    def _add_tts(self, tts_name, content):
+        # 使用正则表达式搜索双引号中的内容
+        match = re.search(r'“(.*)”', content)
+        if match:
+            result = match.group(1)
+            wav_path = self._config_root_path + f"/tts_result/{str(uuid.uuid4())}.wav"
+            to_japanese_tts_and_save(tts_name, result, wav_path)
+            self._story_manager.add(LlmMessage(role="TTS", content=wav_path))
