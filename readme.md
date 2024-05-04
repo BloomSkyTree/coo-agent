@@ -1,5 +1,5 @@
 # COC Agent
-基于多智能体的跑团辅助系统
+基于多种AIGC的跑团辅助系统
 ## 简介
 `COC Agent` 是一个基于多智能体的跑团辅助系统，旨在帮助游戏主持人（KP）和玩家更高效、更有趣地进行游戏（TRPG）。
 
@@ -7,12 +7,18 @@
 
 虽然故事的描述大多交由大语言模型进行生成，但故事的走向是由主持人和玩家共同决定的。
 
-本项目分为3部分：App本体，LLM API和Stable Diffusion API。
+本项目分为四部分：App本体，LLM API，Stable Diffusion API和Voicevox Engine。
+
+- App本体：前端基于streamlit.io开发，以游戏ID标志一局游戏的存在，持有相同游戏ID的人可以进入到同一游戏中。后端为自研的Multi-Agent协调系统，其主旨为利用AIGC增进TRPG游戏体验。
+- LLM API：OpenAI式chat_complete的接口，由后端调用，用于提供文本生成功能。
+- Stable Diffusion API：标准的Stable Diffusion Web API，启动Stable Diffusion实例时使用`--api`选项开启。
+- Voicevox Engine：提供日语TTS功能。
 
 ## 特点
 - **智能体协作**：多个智能体协同工作，自动化游戏流程和非玩家角色角色扮演。
 - **模组管理**：提供了录入模组、角色的页面，系统自动维护模组游玩进程，简化KP的管理工作。
 - **多人游玩**：系统支持一位主持人和复数位玩家同时参与到同一游戏中进行游玩。
+- **AIGC**：录入模组、角色，抑或游玩过程中，都可以利用AIGC的便利功能来增进游戏体验（包括但不限于插画生成、实时日语配音）
 
 ## 部署流程
 将项目克隆到本地：
@@ -33,9 +39,11 @@ python llama3_openai_api_with_itrex.py
 
 理论上来说，本系统适用任何提供OpenAI式chat_complete的接口。
 
-此外，如果想要使用插图生成功能，需自行启动一个 [Stable Diffusion web UI](https://github.com/AUTOMATIC1111/stable-diffusion-webui) 实例，并开启其API功能。在此之后，可于configs/config.yaml中，配置对应的访问url、使用的模型名称等关键信息，以便成功绘制理想的插图。
+如果想要使用插图生成功能，需自行启动一个 [Stable Diffusion web UI](https://github.com/AUTOMATIC1111/stable-diffusion-webui) 实例，并开启其API功能。在此之后，可于configs/config.yaml中，配置对应的访问url、使用的模型名称等关键信息，以便成功绘制理想的插图。
 
-在配置好 LLM API 和 Stable Diffusion API 后，便可通过以下命令启动：
+如果想要使用日语语音合功能，需自行启动一个 [Voicevox Engine](https://voicevox.hiroshiba.jp/) 实例。
+
+在配置好 LLM API 、 Stable Diffusion API 和 Voicevox Engine后，便可通过以下命令启动：
 ```
 streamlit run .\streamlit_app.py
 ```
@@ -109,8 +117,6 @@ streamlit run .\streamlit_app.py
 
 ## TODOs
 · 完善用户系统
-
-· 进一步改善Script Agent对记忆的管理功能，预计扩写为ScriptManager
 
 · 改善页面交互和用户体验
 
