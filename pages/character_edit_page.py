@@ -27,6 +27,8 @@ def load_character_info(character_info):
         if "personality" in character_info else None
     st.session_state['current_character_description'] = character_info["description"] \
         if "description" in character_info else None
+    st.session_state['current_character_tts_name'] = character_info["tts_name"] \
+        if "tts_name" in character_info else None
     st.session_state['current_character_memory'] = character_info["memory"] \
         if "memory" in character_info and character_info["memory"] else None
     if st.session_state['current_character_memory']:
@@ -152,7 +154,8 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                                             if "current_character_description" in st.session_state else None)
                 tts_name = st.selectbox("TTS配音角色",
                                         options=get_speaker_names(),
-                                        index=None,
+                                        index=None if not st.session_state['current_character_tts_name'] else
+                                        get_speaker_names().index(st.session_state['current_character_tts_name']),
                                         placeholder="选择一位voicevox配音角色")
                 memory = st.text_area("人物记忆",
                                       placeholder="留空表示“暂无“。建议不同的记忆以换行分隔。", height=150,

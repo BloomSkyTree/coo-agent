@@ -309,6 +309,9 @@ class GameManager:
     def player_role_play(self, player_name, role_play):
         rp_message = LlmMessage(role=player_name, content=role_play)
         self._story_manager.add(rp_message)
+        character = self.get_character(player_name)
+        if character.get_tts_name() is not None:
+            self._add_tts(character.get_tts_name(), rp_message.content)
         self.judge_check(player_name, role_play)
 
     def get_script(self):
@@ -362,9 +365,8 @@ class GameManager:
         return check_info
 
     def judge_check(self, character, act):
-        scene_description = self._current_scene.get_panorama_prompt()
-        script = "\n".join([f"{m.role}：{m.content}" for m in self.get_script()]) if len(
-            self.get_script()) > 0 else "暂无"
+        scene_description = self._current_scene.get_panorama_prompt() if self._current_scene else "暂无场景信息"
+        script = self._story_manager.get_current_story_as_text() if len(self.get_script()) > 0 else "暂无"
         prompt = f"场景如下：\n{scene_description}\n剧本如下：\n{script}\n" \
                  f"{character} 尝试进行以下言行：{act}\n" \
                  f"根据以上信息，判断{character}是否需要进行检定，以JSON格式回答。"

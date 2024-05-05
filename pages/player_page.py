@@ -66,7 +66,7 @@ if "authentication_status" in st.session_state and st.session_state["authenticat
                         if act:
                             role_play += f"（{act}）"
                         if say:
-                            role_play += f"”{say}“"
+                            role_play += f"“{say}”"
                         if role_play:
                             get_game(game_id).player_role_play(player_name, role_play)
                             st.rerun()

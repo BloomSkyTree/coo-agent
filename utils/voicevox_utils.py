@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+from httpx import ConnectError
 from loguru import logger
 from voicevox import Speaker
 
@@ -42,8 +43,11 @@ def to_japanese_tts_and_save(tts_name, content, save_path):
     asyncio.run(async_to_japanese_tts_and_save(tts_name, content, save_path))
 
 def get_speaker_names():
-    speakers = asyncio.run(async_get_speaker_info())
-    return list(speakers.keys())
+    try:
+        speakers = asyncio.run(async_get_speaker_info())
+        return list(speakers.keys())
+    except ConnectError:
+        return []
 
 
 
