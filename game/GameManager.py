@@ -239,11 +239,9 @@ class GameManager:
 
     def save(self):
         logger.debug("触发存档。")
-        script_memory = self.get_script().to_message_list()
-        with open(self._config_root_path + f"/story.json", "w", encoding="utf-8") as story_json_file:
-            story_json_file.write(json.dumps(script_memory, ensure_ascii=False))
+        self._story_manager.save()
 
-        script = "\n".join([f"{message.role}：{message.content}" for message in self.get_script()])
+        script = self._story_manager.get_current_story_as_text()
         for character_name, character in self._characters.items():
             logger.info(f"保存角色：{character_name}")
             query = LlmMessage(role="user", content=f"剧本如下：\n{script}\n请以{character.get_name()}的视角，生成回忆。")

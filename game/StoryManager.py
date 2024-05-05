@@ -62,7 +62,7 @@ class StoryManager:
         self._current_story_length = len(message.role) + len(message.content)
 
     def save(self):
-        story_content = [m.to_dict() for m in self._story]
+        story_content = [m.to_dict() for m in self._full_story]
         with open(self._story_json_file_path, "w", encoding="utf-8") as story_json_file:
             story_json_file.write(json.dumps(story_content, ensure_ascii=False))
 
